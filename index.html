@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GHS ↔ NGN Rate Tool</title>
+    <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+
+<div class="app">
+
+    <!-- ===== HEADER ===== -->
+    <header class="app-header">
+        <div class="header-brand">
+            <h1 class="app-title">GHS ↔ NGN</h1>
+            <p class="app-subtitle">Exchange Rate Calculator</p>
+        </div>
+        <button class="help-toggle" id="helpToggle" aria-label="Toggle help guide">
+            <span id="helpIcon">?</span>
+        </button>
+    </header>
+
+    <!-- ===== HELP PANEL ===== -->
+    <div class="help-panel" id="helpPanel">
+        <p class="help-heading">How to use this tool</p>
+        <div class="help-grid">
+            <div class="help-item">
+                <span class="tag tag-send">Send Rate</span>
+                <p>Customer gives you <strong>GHS</strong>, you give them <strong>NGN</strong>. Set how many NGN you give per 1 GHS.</p>
+            </div>
+            <div class="help-item">
+                <span class="tag tag-receive">Receive Rate</span>
+                <p>Customer gives you <strong>NGN</strong>, you give them <strong>GHS</strong>. Set the NGN cost per 1 GHS.</p>
+            </div>
+            <div class="help-item">
+                <span class="tag tag-tip">Tip</span>
+                <p>Type in <strong>either</strong> the GHS or NGN field — the other updates automatically. Works in both directions.</p>
+            </div>
+            <div class="help-item">
+                <span class="tag tag-save">Auto-save</span>
+                <p>Your rates are saved on this device and will be here when you return.</p>
+            </div>
+            <div class="help-item">
+                <span class="tag tag-v2">v2 Coming</span>
+                <p>In version 2, rates will be pulled automatically from a central database — no manual entry needed.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MAIN CARD ===== -->
+    <main class="card">
+
+        <!-- RATES SECTION -->
+        <section class="section">
+            <div class="section-header">
+                <span class="section-label">Your Rates</span>
+                <span class="badge badge-v1" title="In v2, rates will sync automatically from a central database">Manual &middot; v2: auto-sync</span>
+            </div>
+
+            <div class="rates-row">
+                <div class="field-group">
+                    <label class="field-label">
+                        Send Rate
+                        <button class="info-icon" data-tip="Use this when a customer gives you GHS and wants NGN.&#10;&#10;Example: if rate is 86, then 1 GHS = 86 NGN." aria-label="Send rate info">ⓘ</button>
+                    </label>
+                    <div class="input-pill-row">
+                        <span class="input-tag tag-send">GHS→NGN</span>
+                        <input type="number" id="sendRate" placeholder="e.g. 86" min="0" step="0.01" inputmode="decimal" />
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <label class="field-label">
+                        Receive Rate
+                        <button class="info-icon" data-tip="Use this when a customer gives you NGN and wants GHS.&#10;&#10;Example: if rate is 81, then 81 NGN = 1 GHS." aria-label="Receive rate info">ⓘ</button>
+                    </label>
+                    <div class="input-pill-row">
+                        <span class="input-tag tag-receive">NGN→GHS</span>
+                        <input type="number" id="receiveRate" placeholder="e.g. 81" min="0" step="0.01" inputmode="decimal" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="spread-bar" id="spreadDisplay"></div>
+        </section>
+
+        <!-- TRANSACTION TYPE -->
+        <section class="section">
+            <div class="section-header">
+                <span class="section-label">Transaction Type</span>
+            </div>
+
+            <div class="tx-type-row">
+                <button class="tx-btn active" id="btnGHS" data-type="GHS_TO_NGN">
+                    <span class="tx-arrow">↗</span>
+                    <div class="tx-btn-text">
+                        <strong>Sending GHS</strong>
+                        <small>Customer gives GHS, gets NGN</small>
+                    </div>
+                    <span class="tx-rate-chip" id="sendRateChip">—</span>
+                </button>
+
+                <button class="tx-btn" id="btnNGN" data-type="NGN_TO_GHS">
+                    <span class="tx-arrow">↙</span>
+                    <div class="tx-btn-text">
+                        <strong>Sending NGN</strong>
+                        <small>Customer gives NGN, gets GHS</small>
+                    </div>
+                    <span class="tx-rate-chip" id="receiveRateChip">—</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- AMOUNT INPUTS -->
+        <section class="section">
+            <div class="section-header">
+                <span class="section-label">Amount</span>
+                <span class="hint-label" id="activeRateHint"></span>
+            </div>
+
+            <div class="amount-grid">
+                <div class="field-group">
+                    <label class="field-label" id="ghsLabel">GHS Amount</label>
+                    <div class="amount-input-wrap">
+                        <span class="currency-sym">₵</span>
+                        <input type="number" id="ghsAmount" placeholder="0.00" min="0" step="0.01" inputmode="decimal" />
+                    </div>
+                    <span class="field-hint" id="ghsHint"></span>
+                </div>
+
+                <div class="equals-divider"><span>=</span></div>
+
+                <div class="field-group">
+                    <label class="field-label" id="ngnLabel">NGN Amount</label>
+                    <div class="amount-input-wrap">
+                        <span class="currency-sym">₦</span>
+                        <input type="number" id="ngnAmount" placeholder="0.00" min="0" step="0.01" inputmode="decimal" />
+                    </div>
+                    <span class="field-hint" id="ngnHint"></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- RESULT -->
+        <div class="result-card" id="resultCard">
+            <div class="result-main" id="resultMain">Enter an amount above</div>
+            <div class="result-sub" id="resultSub"></div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="app-footer">
+        Rate Tool v1 &nbsp;&middot;&nbsp; <span class="footer-v2">v2: live rates from central DB</span>
+    </footer>
+
+</div>
+
+<!-- Floating tooltip -->
+<div class="tooltip" id="tooltip" role="tooltip" aria-live="polite"></div>
+
+<script src="index.js"></script>
+</body>
+</html>
