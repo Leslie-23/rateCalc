@@ -1,290 +1,552 @@
 // =============================================================
-// GHS ↔ NGN Rate Tool — v1
+// GHS ↔ NGN Rate Tool — v1 (CORRECTED for West African market)
 //
-// v2 Migration Notes:
-//   - Replace loadRates() body with an API call to your central DB
-//   - saveRate() becomes a no-op (rates will be read-only from DB)
-//   - The calculation engine and UI logic stay exactly the same
+// UNDERSTANDING THE RATES:
+// - Send Rate = 8.5  (means ₵1 = ₦8.5 × 1000 = ₦8,500)
+// - Receive Rate = 7.9 (means ₵1 = ₦7.9 × 1000 = ₦7,900)
+//
+// CONVERSION RULES:
+// 1. GHS → NGN: (GHS ÷ send rate) × 1000 = NGN
+//    Example: ₵200 ÷ 8.5 = 23.53 × 1000 = ₦23,530
+//
+// 2. NGN → GHS: (NGN ÷ 1000) × receive rate = GHS
+//    Example: ₦200,000 ÷ 1000 = 200 × 7.9 = ₵1,580
+//
+// 3. Want GHS (pay NGN): (GHS wanted ÷ receive rate) × 1000 = NGN to pay
+//    Example: Want ₵200 ÷ 7.9 = 25.32 × 1000 = ₦25,320
+//
+// 4. Want NGN (pay GHS): (NGN wanted ÷ 1000) × send rate = GHS to pay
+//    Example: Want ₦200,000 ÷ 1000 = 200 × 8.5 = ₵1,700
 // =============================================================
+
+
+// ---- TRANSACTION CONFIG ----
+
+const TX = {
+    // Sending GHS to Nigeria
+    GHS_SEND: {
+        dir: "GHS_TO_NGN",
+        label: "Sending GHS",
+        formula: "GHS ÷ send rate × 1000 = NGN",
+        primaryField: "ghs",
+        resultFormat: (ghs, ngn) => `Give ₵${fmt(ghs)} → Receive ₦${fmt(ngn, 0)}`,
+        rateType: "send"
+    },
+    // Sending NGN to Ghana
+    NGN_SEND: {
+        dir: "NGN_TO_GHS",
+        label: "Sending NGN",
+        formula: "NGN ÷ 1000 × receive rate = GHS",
+        primaryField: "ngn",
+        resultFormat: (ghs, ngn) => `Give ₦${fmt(ngn, 0)} → Receive ₵${fmt(ghs)}`,
+        rateType: "receive"
+    },
+    // Want to receive GHS in Ghana
+    GHS_RECV: {
+        dir: "WANT_GHS",
+        label: "Receiving GHS",
+        formula: "GHS wanted ÷ receive rate × 1000 = NGN to pay",
+        primaryField: "ghs",
+        resultFormat: (ghs, ngn) => `Want ₵${fmt(ghs)} → Pay ₦${fmt(ngn, 0)}`,
+        rateType: "receive"
+    },
+    // Want to receive NGN in Nigeria
+    NGN_RECV: {
+        dir: "WANT_NGN",
+        label: "Receiving NGN",
+        formula: "NGN wanted ÷ 1000 × send rate = GHS to pay",
+        primaryField: "ngn",
+        resultFormat: (ghs, ngn) => `Want ₦${fmt(ngn, 0)} → Pay ₵${fmt(ghs)}`,
+        rateType: "send"
+    }
+};
 
 
 // ---- STATE ----
 
 const state = {
-    sendRate: 0,
-    receiveRate: 0,
-    conversionType: "GHS_TO_NGN", // "GHS_TO_NGN" | "NGN_TO_GHS"
-    lastEdited: "ghs",            // "ghs" | "ngn" — whichever field the user typed in last
+    sendRate: 8.5,
+    receiveRate: 7.9,
+    txKey: "GHS_SEND",
+    lastEdited: "ghs",
+    ghsAmount: 0,
+    ngnAmount: 0
+};
+
+const recvState = {
+    txKey: "GHS_RECV",
+    lastEdited: "ghs",
     ghsAmount: 0,
     ngnAmount: 0
 };
 
 
-// ---- DOM ----
+// ---- DOM ELEMENTS ----
 
-const sendRateInput    = document.getElementById("sendRate");
+const sendRateInput = document.getElementById("sendRate");
 const receiveRateInput = document.getElementById("receiveRate");
-const btnGHS           = document.getElementById("btnGHS");
-const btnNGN           = document.getElementById("btnNGN");
-const ghsAmountInput   = document.getElementById("ghsAmount");
-const ngnAmountInput   = document.getElementById("ngnAmount");
-const spreadDisplay    = document.getElementById("spreadDisplay");
-const resultCard       = document.getElementById("resultCard");
-const resultMain       = document.getElementById("resultMain");
-const resultSub        = document.getElementById("resultSub");
-const sendRateChip     = document.getElementById("sendRateChip");
-const receiveRateChip  = document.getElementById("receiveRateChip");
-const activeRateHint   = document.getElementById("activeRateHint");
-const ghsHint          = document.getElementById("ghsHint");
-const ngnHint          = document.getElementById("ngnHint");
-const helpToggle       = document.getElementById("helpToggle");
-const helpPanel        = document.getElementById("helpPanel");
-const helpIcon         = document.getElementById("helpIcon");
-const tooltip          = document.getElementById("tooltip");
+const spreadDisplay = document.getElementById("spreadDisplay");
+
+// Sending calculator
+const ghsAmountInput = document.getElementById("ghsAmount");
+const ngnAmountInput = document.getElementById("ngnAmount");
+const resultCard = document.getElementById("resultCard");
+const resultMain = document.getElementById("resultMain");
+const resultSub = document.getElementById("resultSub");
+const ghsSendLabel = document.getElementById("ghsSendLabel");
+const ngnSendLabel = document.getElementById("ngnSendLabel");
+
+// Receiving calculator
+const recvGhsAmountInput = document.getElementById("recvGhsAmount");
+const recvNgnAmountInput = document.getElementById("recvNgnAmount");
+const recvResultCard = document.getElementById("recvResultCard");
+const recvResultMain = document.getElementById("recvResultMain");
+const recvResultSub = document.getElementById("recvResultSub");
+const ghsRecvLabel = document.getElementById("ghsRecvLabel");
+const ngnRecvLabel = document.getElementById("ngnRecvLabel");
+
+// Help & tooltips
+const helpToggle = document.getElementById("helpToggle");
+const helpPanel = document.getElementById("helpPanel");
+const helpIcon = document.getElementById("helpIcon");
+const tooltip = document.getElementById("tooltip");
+
+// Quote elements
+const quoteGhsInput = document.getElementById("quoteGhs");
+const quoteNgnInput = document.getElementById("quoteNgn");
+const quoteWantGhsInput = document.getElementById("quoteWantGhs");
+const quoteWantNgnInput = document.getElementById("quoteWantNgn");
+const quoteGhsAmount = document.getElementById("quoteGhsAmount");
+const quoteNgnAmount = document.getElementById("quoteNgnAmount");
+const quoteWantGhsAmount = document.getElementById("quoteWantGhsAmount");
+const quoteWantNgnAmount = document.getElementById("quoteWantNgnAmount");
+const quoteGhsNote = document.getElementById("quoteGhsNote");
+const quoteNgnNote = document.getElementById("quoteNgnNote");
+const quoteWantGhsNote = document.getElementById("quoteWantGhsNote");
+const quoteWantNgnNote = document.getElementById("quoteWantNgnNote");
 
 
-// ---- v2 RATE HOOKS ----
+// ---- UTILITIES ----
 
-/**
- * Loads exchange rates into state and populates the inputs.
- *
- * v1:  Reads from localStorage (manual entry, persisted locally).
- * v2:  Replace this body with:
- *        const rates = await fetch("/api/rates").then(r => r.json());
- *        state.sendRate    = rates.sendRate;
- *        state.receiveRate = rates.receiveRate;
- *        sendRateInput.value    = rates.sendRate;
- *        receiveRateInput.value = rates.receiveRate;
- *        sendRateInput.disabled    = true;  // read-only in v2
- *        receiveRateInput.disabled = true;
- */
-function loadRates() {
-    state.sendRate    = parseFloat(localStorage.getItem("sendRate"))    || 0;
-    state.receiveRate = parseFloat(localStorage.getItem("receiveRate")) || 0;
-    if (state.sendRate)    sendRateInput.value    = state.sendRate;
-    if (state.receiveRate) receiveRateInput.value = state.receiveRate;
+function fmt(n, dec = 2) {
+    if (n == null || isNaN(n)) return "—";
+    return n.toLocaleString("en-US", {
+        minimumFractionDigits: dec,
+        maximumFractionDigits: dec
+    });
 }
 
-/**
- * Persists a rate after manual edit.
- *
- * v1:  Saves to localStorage.
- * v2:  Remove this call entirely — rates come from the DB, not edited locally.
- */
+function loadRates() {
+    state.sendRate = parseFloat(localStorage.getItem("sendRate")) || 8.5;
+    state.receiveRate = parseFloat(localStorage.getItem("receiveRate")) || 7.9;
+    sendRateInput.value = state.sendRate;
+    receiveRateInput.value = state.receiveRate;
+}
+
 function saveRate(key, value) {
     localStorage.setItem(key, value);
 }
 
 
-// ---- UTILS ----
+// =====================================================================
+// CALCULATION ENGINE — CORRECTED for West African market
+// =====================================================================
 
-function fmt(n, dec = 2) {
-    if (n == null || isNaN(n)) return "—";
-    return n.toLocaleString("en-US", {
-        minimumFractionDigits:  dec,
-        maximumFractionDigits:  dec
-    });
+function calculateSending(txKey, lastEdited, ghsVal, ngnVal) {
+    const tx = TX[txKey];
+    
+    // SENDING GHS to Nigeria
+    if (txKey === "GHS_SEND") {
+        if (!state.sendRate || state.sendRate <= 0)
+            return { error: "Set your send rate above" };
+            
+        if (lastEdited === "ghs") {
+            if (!ghsVal || ghsVal <= 0) return { clear: true };
+            // GHS → NGN: (GHS ÷ send rate) × 1000
+            const ngn = (ghsVal / state.sendRate) * 1000;
+            return { ghs: ghsVal, ngn, rate: state.sendRate };
+        } else {
+            if (!ngnVal || ngnVal <= 0) return { clear: true };
+            // NGN → GHS reverse: (NGN ÷ 1000) × send rate
+            const ghs = (ngnVal / 1000) * state.sendRate;
+            return { ghs, ngn: ngnVal, rate: state.sendRate };
+        }
+    }
+    
+    // SENDING NGN to Ghana
+    if (txKey === "NGN_SEND") {
+        if (!state.receiveRate || state.receiveRate <= 0)
+            return { error: "Set your receive rate above" };
+            
+        if (lastEdited === "ngn") {
+            if (!ngnVal || ngnVal <= 0) return { clear: true };
+            // NGN → GHS: (NGN ÷ 1000) × receive rate
+            const ghs = (ngnVal / 1000) * state.receiveRate;
+            return { ghs, ngn: ngnVal, rate: state.receiveRate };
+        } else {
+            if (!ghsVal || ghsVal <= 0) return { clear: true };
+            // GHS → NGN reverse: (GHS × 1000) ÷ receive rate? No!
+            // Actually: If they have GHS and want to know NGN equivalent when sending NGN,
+            // it's the reverse of the above: NGN = (GHS × 1000) ÷ receive rate
+            const ngn = (ghsVal * 1000) / state.receiveRate;
+            return { ghs: ghsVal, ngn, rate: state.receiveRate };
+        }
+    }
+    
+    return { error: "Unknown transaction type" };
+}
+
+function calculateReceiving(txKey, lastEdited, ghsVal, ngnVal) {
+    // WANT GHS (pay NGN)
+    if (txKey === "GHS_RECV") {
+        if (!state.receiveRate || state.receiveRate <= 0)
+            return { error: "Set your receive rate above" };
+            
+        if (lastEdited === "ghs") {
+            if (!ghsVal || ghsVal <= 0) return { clear: true };
+            // Want GHS → Pay NGN: (GHS wanted ÷ receive rate) × 1000
+            const ngn = (ghsVal / state.receiveRate) * 1000;
+            return { ghs: ghsVal, ngn, rate: state.receiveRate };
+        } else {
+            if (!ngnVal || ngnVal <= 0) return { clear: true };
+            // Pay NGN → Want GHS reverse: GHS = (NGN ÷ 1000) × receive rate
+            const ghs = (ngnVal / 1000) * state.receiveRate;
+            return { ghs, ngn: ngnVal, rate: state.receiveRate };
+        }
+    }
+    
+    // WANT NGN (pay GHS)
+    if (txKey === "NGN_RECV") {
+        if (!state.sendRate || state.sendRate <= 0)
+            return { error: "Set your send rate above" };
+            
+        if (lastEdited === "ngn") {
+            if (!ngnVal || ngnVal <= 0) return { clear: true };
+            // Want NGN → Pay GHS: (NGN wanted ÷ 1000) × send rate
+            const ghs = (ngnVal / 1000) * state.sendRate;
+            return { ghs, ngn: ngnVal, rate: state.sendRate };
+        } else {
+            if (!ghsVal || ghsVal <= 0) return { clear: true };
+            // Pay GHS → Want NGN reverse: NGN = (GHS × 1000) ÷ send rate
+            const ngn = (ghsVal * 1000) / state.sendRate;
+            return { ghs: ghsVal, ngn, rate: state.sendRate };
+        }
+    }
+    
+    return { error: "Unknown transaction type" };
 }
 
 
-// ---- CORE CALCULATION ENGINE ----
-//
-// Covers all 4 transaction flows:
-//
-//  GHS_TO_NGN + lastEdited=ghs  →  Customer gives GHS, gets NGN
-//                                   NGN = GHS × sendRate
-//
-//  GHS_TO_NGN + lastEdited=ngn  →  Customer wants X NGN, how much GHS to give?
-//                                   GHS = NGN ÷ sendRate
-//
-//  NGN_TO_GHS + lastEdited=ngn  →  Customer gives NGN, gets GHS
-//                                   GHS = NGN ÷ receiveRate
-//
-//  NGN_TO_GHS + lastEdited=ghs  →  Customer wants X GHS, how much NGN to give?
-//                                   NGN = GHS × receiveRate
+// ---- RENDER FUNCTIONS ----
 
-function calculate({ conversionType, sendRate, receiveRate, lastEdited, ghsAmount, ngnAmount }) {
-    const isSendingGHS = conversionType === "GHS_TO_NGN";
-    const rate         = isSendingGHS ? sendRate : receiveRate;
-    const rateName     = isSendingGHS ? "send" : "receive";
-
-    if (!rate || rate <= 0) {
-        return { error: `Set your ${rateName} rate above to continue` };
+function renderSendingResult() {
+    const result = calculateSending(
+        state.txKey,
+        state.lastEdited,
+        state.ghsAmount,
+        state.ngnAmount
+    );
+    
+    if (result.error) {
+        resultCard.className = "result-card result-warn";
+        resultMain.textContent = result.error;
+        resultSub.textContent = "";
+        return;
     }
-
-    if (lastEdited === "ghs") {
-        if (!ghsAmount || ghsAmount <= 0) return { clear: true };
-        return { ghsAmount, ngnAmount: ghsAmount * rate, rate, rateName };
+    
+    if (result.clear) {
+        resultCard.className = "result-card";
+        resultMain.textContent = "Enter an amount above";
+        resultSub.textContent = "";
+        if (state.lastEdited === "ghs") {
+            ngnAmountInput.value = "";
+            state.ngnAmount = 0;
+        } else {
+            ghsAmountInput.value = "";
+            state.ghsAmount = 0;
+        }
+        return;
     }
+    
+    // Update fields
+    if (state.lastEdited === "ghs") {
+        ngnAmountInput.value = Math.round(result.ngn);
+        state.ngnAmount = result.ngn;
+    } else {
+        ghsAmountInput.value = result.ghs.toFixed(2);
+        state.ghsAmount = result.ghs;
+    }
+    
+    resultCard.className = "result-card result-active";
+    resultMain.innerHTML = TX[state.txKey].resultFormat(result.ghs, result.ngn);
+    
+    const rateType = TX[state.txKey].rateType;
+    resultSub.textContent = `${TX[state.txKey].formula}  ·  ${rateType} rate: ${fmt(result.rate, 2)}`;
+}
 
-    // lastEdited === "ngn"
-    if (!ngnAmount || ngnAmount <= 0) return { clear: true };
-    return { ghsAmount: ngnAmount / rate, ngnAmount, rate, rateName };
+function renderReceivingResult() {
+    const result = calculateReceiving(
+        recvState.txKey,
+        recvState.lastEdited,
+        recvState.ghsAmount,
+        recvState.ngnAmount
+    );
+    
+    if (result.error) {
+        recvResultCard.className = "result-card result-warn";
+        recvResultMain.textContent = result.error;
+        recvResultSub.textContent = "";
+        return;
+    }
+    
+    if (result.clear) {
+        recvResultCard.className = "result-card";
+        recvResultMain.textContent = "Enter an amount above";
+        recvResultSub.textContent = "";
+        if (recvState.lastEdited === "ghs") {
+            recvNgnAmountInput.value = "";
+            recvState.ngnAmount = 0;
+        } else {
+            recvGhsAmountInput.value = "";
+            recvState.ghsAmount = 0;
+        }
+        return;
+    }
+    
+    // Update fields
+    if (recvState.lastEdited === "ghs") {
+        recvNgnAmountInput.value = Math.round(result.ngn);
+        recvState.ngnAmount = result.ngn;
+    } else {
+        recvGhsAmountInput.value = result.ghs.toFixed(2);
+        recvState.ghsAmount = result.ghs;
+    }
+    
+    recvResultCard.className = "result-card result-active";
+    recvResultMain.innerHTML = TX[recvState.txKey].resultFormat(result.ghs, result.ngn);
+    
+    const rateType = TX[recvState.txKey].rateType;
+    recvResultSub.textContent = `${TX[recvState.txKey].formula}  ·  ${rateType} rate: ${fmt(result.rate, 2)}`;
 }
 
 
-// ---- SPREAD ----
+// ---- SPREAD CALCULATION ----
 
 function updateSpread() {
     const { sendRate, receiveRate } = state;
-
-    sendRateChip.textContent    = sendRate    > 0 ? fmt(sendRate,    2) : "—";
-    receiveRateChip.textContent = receiveRate > 0 ? fmt(receiveRate, 2) : "—";
-
+    
     if (sendRate > 0 && receiveRate > 0) {
-        const spread = sendRate - receiveRate;
-        const pct    = ((spread / receiveRate) * 100).toFixed(1);
-
+        const spread = ((sendRate - receiveRate) / receiveRate) * 100;
+        
         if (spread > 0) {
-            spreadDisplay.className  = "spread-bar spread-ok";
-            spreadDisplay.innerHTML  =
-                `<span class="spread-dot">&#9679;</span> Margin: <strong>${fmt(spread, 2)} NGN per GHS</strong> &nbsp;&middot;&nbsp; ${pct}% spread`;
+            spreadDisplay.className = "spread-bar spread-ok";
+            spreadDisplay.innerHTML = `💰 Your profit margin: ${spread.toFixed(1)}% (Send: ${sendRate}, Receive: ${receiveRate})`;
         } else if (spread === 0) {
-            spreadDisplay.className  = "spread-bar spread-warn";
-            spreadDisplay.innerHTML  =
-                `<span class="spread-dot">&#9679;</span> No margin — send and receive rates are equal`;
+            spreadDisplay.className = "spread-bar spread-warn";
+            spreadDisplay.innerHTML = "⚠️ No profit margin — rates are equal";
         } else {
-            spreadDisplay.className  = "spread-bar spread-error";
-            spreadDisplay.innerHTML  =
-                `<span class="spread-dot">&#9679;</span> Warning: send rate is lower than receive rate — check your rates`;
+            spreadDisplay.className = "spread-bar spread-error";
+            spreadDisplay.innerHTML = "🚨 ARBITRAGE RISK: Send rate below receive rate!";
         }
     } else {
         spreadDisplay.className = "spread-bar";
-        spreadDisplay.innerHTML = "";
+        spreadDisplay.innerHTML = "Enter both rates to see your profit margin";
     }
 }
 
 
-// ---- DIRECTION LABELS ----
+// ---- QUOTE UPDATE ----
 
-function updateLabels() {
-    const isSendingGHS = state.conversionType === "GHS_TO_NGN";
-
-    if (isSendingGHS) {
-        ghsHint.textContent = "Customer gives ↑";
-        ngnHint.textContent = "Customer receives ↓";
-        activeRateHint.textContent = state.sendRate > 0
-            ? `Send rate: ${fmt(state.sendRate, 2)} NGN/GHS`
-            : "Set send rate above";
+function updateQuote() {
+    // Send GHS → Get NGN
+    const ghsVal = parseFloat(quoteGhsInput.value) || 0;
+    if (state.sendRate > 0 && ghsVal > 0) {
+        const ngn = (ghsVal / state.sendRate) * 1000;
+        quoteGhsAmount.textContent = `₦${fmt(ngn, 0)}`;
+        quoteGhsNote.textContent = `Send rate: ${state.sendRate} (${ghsVal} ÷ ${state.sendRate} × 1000)`;
     } else {
-        ngnHint.textContent = "Customer gives ↑";
-        ghsHint.textContent = "Customer receives ↓";
-        activeRateHint.textContent = state.receiveRate > 0
-            ? `Receive rate: ${fmt(state.receiveRate, 2)} NGN/GHS`
-            : "Set receive rate above";
+        quoteGhsAmount.textContent = "—";
+        quoteGhsNote.textContent = state.sendRate > 0 ? "Enter GHS amount" : "Set send rate first";
     }
-}
-
-
-// ---- RENDER RESULT ----
-
-function renderResult() {
-    const result = calculate(state);
-
-    if (result.error) {
-        resultCard.className    = "result-card result-warn";
-        resultMain.textContent  = result.error;
-        resultSub.textContent   = "";
-        return;
-    }
-
-    if (result.clear) {
-        resultCard.className    = "result-card";
-        resultMain.textContent  = "Enter an amount above";
-        resultSub.textContent   = "";
-        // Clear the other field
-        if (state.lastEdited === "ghs") { ngnAmountInput.value = ""; state.ngnAmount = 0; }
-        else                            { ghsAmountInput.value  = ""; state.ghsAmount = 0; }
-        return;
-    }
-
-    // Update the non-edited field (without triggering its input event)
-    if (state.lastEdited === "ghs") {
-        ngnAmountInput.value = result.ngnAmount.toFixed(2);
-        state.ngnAmount      = result.ngnAmount;
+    
+    // Send NGN → Get GHS
+    const ngnVal = parseFloat(quoteNgnInput.value) || 0;
+    if (state.receiveRate > 0 && ngnVal > 0) {
+        const ghs = (ngnVal / 1000) * state.receiveRate;
+        quoteNgnAmount.textContent = `₵${fmt(ghs)}`;
+        quoteNgnNote.textContent = `Receive rate: ${state.receiveRate} (${fmt(ngnVal, 0)} ÷ 1000 × ${state.receiveRate})`;
     } else {
-        ghsAmountInput.value = result.ghsAmount.toFixed(2);
-        state.ghsAmount      = result.ghsAmount;
+        quoteNgnAmount.textContent = "—";
+        quoteNgnNote.textContent = state.receiveRate > 0 ? "Enter NGN amount" : "Set receive rate first";
     }
-
-    resultCard.className   = "result-card result-active";
-    resultMain.innerHTML   = `&#8373;${fmt(result.ghsAmount)} &nbsp;&rarr;&nbsp; &#8358;${fmt(result.ngnAmount)}`;
-    resultSub.textContent  = `${fmt(result.rate, 2)} NGN per GHS (${result.rateName} rate)`;
+    
+    // Want GHS → Pay NGN
+    const wantGhs = parseFloat(quoteWantGhsInput.value) || 0;
+    if (state.receiveRate > 0 && wantGhs > 0) {
+        const payNgn = (wantGhs / state.receiveRate) * 1000;
+        quoteWantGhsAmount.textContent = `₦${fmt(payNgn, 0)}`;
+        quoteWantGhsNote.textContent = `Receive rate: ${state.receiveRate} (${wantGhs} ÷ ${state.receiveRate} × 1000)`;
+    } else {
+        quoteWantGhsAmount.textContent = "—";
+        quoteWantGhsNote.textContent = state.receiveRate > 0 ? "Enter GHS wanted" : "Set receive rate first";
+    }
+    
+    // Want NGN → Pay GHS
+    const wantNgn = parseFloat(quoteWantNgnInput.value) || 0;
+    if (state.sendRate > 0 && wantNgn > 0) {
+        const payGhs = (wantNgn / 1000) * state.sendRate;
+        quoteWantNgnAmount.textContent = `₵${fmt(payGhs)}`;
+        quoteWantNgnNote.textContent = `Send rate: ${state.sendRate} (${fmt(wantNgn, 0)} ÷ 1000 × ${state.sendRate})`;
+    } else {
+        quoteWantNgnAmount.textContent = "—";
+        quoteWantNgnNote.textContent = state.sendRate > 0 ? "Enter NGN wanted" : "Set send rate first";
+    }
 }
 
 
-// ---- FULL REFRESH ----
+// ---- EVENT HANDLERS ----
 
-function refresh() {
-    updateSpread();
-    updateLabels();
-    renderResult();
-}
-
-
-// ---- EVENTS: RATES ----
-
+// Rate inputs
 sendRateInput.addEventListener("input", (e) => {
     state.sendRate = parseFloat(e.target.value) || 0;
     saveRate("sendRate", state.sendRate);
-    refresh();
+    updateSpread();
+    renderSendingResult();
+    renderReceivingResult();
+    updateQuote();
 });
 
 receiveRateInput.addEventListener("input", (e) => {
     state.receiveRate = parseFloat(e.target.value) || 0;
     saveRate("receiveRate", state.receiveRate);
-    refresh();
+    updateSpread();
+    renderSendingResult();
+    renderReceivingResult();
+    updateQuote();
 });
 
+// Sending transaction type
+document.getElementById("btn_GHS_SEND").addEventListener("click", () => {
+    state.txKey = "GHS_SEND";
+    state.lastEdited = "ghs";
+    state.ghsAmount = 0;
+    state.ngnAmount = 0;
+    ghsAmountInput.value = "";
+    ngnAmountInput.value = "";
+    
+    document.querySelectorAll("#btn_GHS_SEND, #btn_NGN_SEND").forEach(btn => {
+        btn.classList.toggle("active", btn.id === "btn_GHS_SEND");
+    });
+    
+    ghsSendLabel.textContent = "GHS Amount (what customer gives)";
+    ngnSendLabel.textContent = "NGN Amount (what customer receives)";
+    renderSendingResult();
+});
 
-// ---- EVENTS: TRANSACTION TYPE ----
+document.getElementById("btn_NGN_SEND").addEventListener("click", () => {
+    state.txKey = "NGN_SEND";
+    state.lastEdited = "ngn";
+    state.ghsAmount = 0;
+    state.ngnAmount = 0;
+    ghsAmountInput.value = "";
+    ngnAmountInput.value = "";
+    
+    document.querySelectorAll("#btn_GHS_SEND, #btn_NGN_SEND").forEach(btn => {
+        btn.classList.toggle("active", btn.id === "btn_NGN_SEND");
+    });
+    
+    ghsSendLabel.textContent = "GHS Amount (what customer receives)";
+    ngnSendLabel.textContent = "NGN Amount (what customer gives)";
+    renderSendingResult();
+});
 
-function setTxType(type) {
-    state.conversionType = type;
-    btnGHS.classList.toggle("active", type === "GHS_TO_NGN");
-    btnNGN.classList.toggle("active", type === "NGN_TO_GHS");
-    refresh();
-}
+// Receiving transaction type
+document.getElementById("btn_GHS_RECV").addEventListener("click", () => {
+    recvState.txKey = "GHS_RECV";
+    recvState.lastEdited = "ghs";
+    recvState.ghsAmount = 0;
+    recvState.ngnAmount = 0;
+    recvGhsAmountInput.value = "";
+    recvNgnAmountInput.value = "";
+    
+    document.querySelectorAll("#btn_GHS_RECV, #btn_NGN_RECV").forEach(btn => {
+        btn.classList.toggle("active", btn.id === "btn_GHS_RECV");
+    });
+    
+    ghsRecvLabel.textContent = "GHS Amount (what customer wants)";
+    ngnRecvLabel.textContent = "NGN Amount (what customer pays)";
+    renderReceivingResult();
+});
 
-btnGHS.addEventListener("click", () => setTxType("GHS_TO_NGN"));
-btnNGN.addEventListener("click", () => setTxType("NGN_TO_GHS"));
+document.getElementById("btn_NGN_RECV").addEventListener("click", () => {
+    recvState.txKey = "NGN_RECV";
+    recvState.lastEdited = "ngn";
+    recvState.ghsAmount = 0;
+    recvState.ngnAmount = 0;
+    recvGhsAmountInput.value = "";
+    recvNgnAmountInput.value = "";
+    
+    document.querySelectorAll("#btn_GHS_RECV, #btn_NGN_RECV").forEach(btn => {
+        btn.classList.toggle("active", btn.id === "btn_NGN_RECV");
+    });
+    
+    ghsRecvLabel.textContent = "GHS Amount (what customer pays)";
+    ngnRecvLabel.textContent = "NGN Amount (what customer wants)";
+    renderReceivingResult();
+});
 
-
-// ---- EVENTS: AMOUNTS ----
-
+// Sending amount inputs
 ghsAmountInput.addEventListener("input", (e) => {
     state.lastEdited = "ghs";
-    state.ghsAmount  = parseFloat(e.target.value) || 0;
-    renderResult();
+    state.ghsAmount = parseFloat(e.target.value) || 0;
+    renderSendingResult();
+    updateQuote();
 });
 
 ngnAmountInput.addEventListener("input", (e) => {
     state.lastEdited = "ngn";
-    state.ngnAmount  = parseFloat(e.target.value) || 0;
-    renderResult();
+    state.ngnAmount = parseFloat(e.target.value) || 0;
+    renderSendingResult();
+    updateQuote();
 });
 
+// Receiving amount inputs
+recvGhsAmountInput.addEventListener("input", (e) => {
+    recvState.lastEdited = "ghs";
+    recvState.ghsAmount = parseFloat(e.target.value) || 0;
+    renderReceivingResult();
+    updateQuote();
+});
 
-// ---- HELP PANEL ----
+recvNgnAmountInput.addEventListener("input", (e) => {
+    recvState.lastEdited = "ngn";
+    recvState.ngnAmount = parseFloat(e.target.value) || 0;
+    renderReceivingResult();
+    updateQuote();
+});
 
+// Quote inputs
+quoteGhsInput.addEventListener("input", updateQuote);
+quoteNgnInput.addEventListener("input", updateQuote);
+quoteWantGhsInput.addEventListener("input", updateQuote);
+quoteWantNgnInput.addEventListener("input", updateQuote);
+
+// Help panel
 helpToggle.addEventListener("click", () => {
     const isOpen = helpPanel.classList.toggle("open");
     helpIcon.textContent = isOpen ? "✕" : "?";
     helpToggle.classList.toggle("active", isOpen);
 });
 
-
-// ---- TOOLTIPS ----
-
+// Tooltips
 document.querySelectorAll(".info-icon").forEach(btn => {
     btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const tip  = btn.dataset.tip;
+        const tip = btn.dataset.tip;
         const rect = btn.getBoundingClientRect();
-
         tooltip.textContent = tip;
-        tooltip.style.top   = `${rect.bottom + window.scrollY + 8}px`;
-        tooltip.style.left  = `${Math.min(rect.left + window.scrollX, window.innerWidth - 240)}px`;
+        tooltip.style.top = `${rect.bottom + window.scrollY + 8}px`;
+        tooltip.style.left = `${Math.min(rect.left + window.scrollX, window.innerWidth - 240)}px`;
         tooltip.classList.add("visible");
     });
 });
@@ -292,7 +554,10 @@ document.querySelectorAll(".info-icon").forEach(btn => {
 document.addEventListener("click", () => tooltip.classList.remove("visible"));
 
 
-// ---- INIT ----
+// ---- INITIALIZATION ----
 
 loadRates();
-refresh();
+updateSpread();
+renderSendingResult();
+renderReceivingResult();
+updateQuote();

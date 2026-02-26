@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Icon Generator — Rate Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            padding: 40px 16px;
+            color: #1a1a2e;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 480px;
+            width: 100%;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+        }
+        h1 { font-size: 1.2rem; margin-bottom: 6px; color: #0a7f3f; }
+        p  { font-size: 13px; color: #666; margin-bottom: 24px; line-height: 1.5; }
+        .canvases {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        .icon-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        canvas { border-radius: 16px; border: 1px solid #e0e0e0; }
+        small  { font-size: 11px; color: #999; }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 13px;
+            background: #0a7f3f;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .btn:hover { background: #086c34; }
+        .btn.secondary {
+            background: #e8f5ee;
+            color: #0a7f3f;
+            border: 1.5px solid #b2dfcc;
+        }
+        .steps {
+            background: #f8f9fb;
+            border-radius: 8px;
+            padding: 14px;
+            font-size: 12px;
+            color: #555;
+            line-height: 1.8;
+            margin-top: 16px;
+        }
+        .steps strong { color: #0a7f3f; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>Icon Generator</h1>
+    <p>This page generates the PNG icons required for the Android "Add to Home Screen" install prompt. Open this once, download both icons, and save them into your <code>icons/</code> folder.</p>
+
+    <div class="canvases">
+        <div class="icon-wrap">
+            <canvas id="c192" width="192" height="192"></canvas>
+            <small>192 × 192</small>
+        </div>
+        <div class="icon-wrap">
+            <canvas id="c512" width="512" height="512"></canvas>
+            <small>512 × 512</small>
+        </div>
+    </div>
+
+    <button class="btn" onclick="downloadIcon('c192', 'icon-192.png')">
+        Download icon-192.png
+    </button>
+    <button class="btn" onclick="downloadIcon('c512', 'icon-512.png')">
+        Download icon-512.png
+    </button>
+
+    <div class="steps">
+        <strong>After downloading:</strong><br>
+        1. Move both files into the <code>icons/</code> folder<br>
+        2. Your PWA now meets all Android install requirements<br>
+        3. You can delete this file — it's not needed again
+    </div>
+</div>
+
+<script>
+    function drawIcon(canvas) {
+        const size = canvas.width;
+        const ctx  = canvas.getContext("2d");
+        const r    = size * 0.1875; // corner radius (e.g. 96px on 512)
+
+        // Rounded rect background
+        ctx.beginPath();
+        ctx.moveTo(r, 0);
+        ctx.lineTo(size - r, 0);
+        ctx.quadraticCurveTo(size, 0, size, r);
+        ctx.lineTo(size, size - r);
+        ctx.quadraticCurveTo(size, size, size - r, size);
+        ctx.lineTo(r, size);
+        ctx.quadraticCurveTo(0, size, 0, size - r);
+        ctx.lineTo(0, r);
+        ctx.quadraticCurveTo(0, 0, r, 0);
+        ctx.closePath();
+        ctx.fillStyle = "#0a7f3f";
+        ctx.fill();
+
+        const scale = size / 512;
+
+        // GHS symbol (₵) — top-left area
+        ctx.font         = `800 ${Math.round(192 * scale)}px Arial, sans-serif`;
+        ctx.textAlign    = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle    = "#ffffff";
+        ctx.fillText("\u20B5", 148 * scale, 230 * scale);
+
+        // NGN symbol (₦) — bottom-right area, semi-transparent
+        ctx.fillStyle = "rgba(255, 255, 255, 0.60)";
+        ctx.fillText("\u20A6", 364 * scale, 320 * scale);
+
+        // Swap arrow
+        ctx.font      = `${Math.round(52 * scale)}px Arial, sans-serif`;
+        ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+        ctx.fillText("\u21C4", 256 * scale, 454 * scale);
+    }
+
+    function downloadIcon(canvasId, filename) {
+        const canvas = document.getElementById(canvasId);
+        const link   = document.createElement("a");
+        link.download = filename;
+        link.href     = canvas.toDataURL("image/png");
+        link.click();
+    }
+
+    // Draw both on load
+    drawIcon(document.getElementById("c192"));
+    drawIcon(document.getElementById("c512"));
+</script>
+</body>
+</html>

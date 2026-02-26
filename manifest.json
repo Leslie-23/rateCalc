@@ -1,0 +1,51 @@
+{
+    "name": "GHS ↔ NGN Rate Tool",
+    "short_name": "Rate Tool",
+    "description": "GHS to NGN exchange rate calculator for forex operators. Set your own send and receive rates, calculate all transaction directions instantly.",
+    "start_url": "./index.html",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#f0f2f5",
+    "theme_color": "#0a7f3f",
+    "orientation": "portrait-primary",
+    "categories": ["finance", "utilities"],
+    "lang": "en",
+
+    "icons": [
+        {
+            "src": "icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "maskable"
+        },
+
+        {
+            "src": "icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+
+    "screenshots": [],
+
+    "prefer_related_applications": false
+}

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#0a7f3f"/>
+
+  <!-- Top-left GHS symbol -->
+  <text
+    x="148"
+    y="230"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="192"
+    font-weight="800"
+    fill="#ffffff"
+    text-anchor="middle"
+    dominant-baseline="middle">&#8373;</text>
+
+  <!-- Bottom-right NGN symbol (slightly transparent for depth) -->
+  <text
+    x="364"
+    y="320"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="192"
+    font-weight="800"
+    fill="rgba(255,255,255,0.60)"
+    text-anchor="middle"
+    dominant-baseline="middle">&#8358;</text>
+
+  <!-- Swap arrow -->
+  <text
+    x="256"
+    y="454"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="52"
+    fill="rgba(255,255,255,0.45)"
+    text-anchor="middle"
+    dominant-baseline="middle">&#8644;</text>
+</svg>
