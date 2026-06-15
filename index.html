@@ -2,138 +2,114 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GHS ↔ NGN Rate Tool</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>GHS to NGN Rate Desk</title>
     <link rel="stylesheet" href="index.css" />
 
-    <!-- ===== PWA ===== -->
     <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#0a7f3f" />
+    <meta name="theme-color" content="#0f5f46" />
 
-    <!-- iOS / Safari install support -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Rate Tool" />
+    <meta name="apple-mobile-web-app-title" content="Rate Desk" />
     <link rel="apple-touch-icon" href="icons/icon.svg" />
 
-    <!-- Tile for Windows / Edge -->
-    <meta name="msapplication-TileColor" content="#0a7f3f" />
+    <meta name="msapplication-TileColor" content="#0f5f46" />
     <meta name="msapplication-TileImage" href="icons/icon.svg" />
 </head>
 <body>
-
 <div class="app">
-
-    <!-- ===== HEADER ===== -->
     <header class="app-header">
         <div class="header-brand">
+            <span class="app-kicker">Internal rate desk</span>
             <h1 class="app-title">GHS ↔ NGN</h1>
-            <p class="app-subtitle">Exchange Rate Calculator</p>
         </div>
-        <button class="help-toggle" id="helpToggle" aria-label="Toggle help guide">
+        <button class="help-toggle" id="helpToggle" aria-label="Open help guide">
             <span id="helpIcon">?</span>
         </button>
     </header>
 
-    <!-- ===== HELP PANEL ===== -->
     <div class="help-panel" id="helpPanel">
-        <p class="help-heading">How to use this tool</p>
+        <p class="help-heading">Quick guide</p>
         <div class="help-grid">
             <div class="help-item">
-                <span class="tag tag-send">Sending GHS</span>
-                <p>Customer gives GHS, receives NGN.<br><code>NGN = (GHS ÷ send rate) × 1000</code></p>
-                <small>Example: ₵200 ÷ 8.5 = 23.53 × 1000 = ₦23,530</small>
+                <span class="tag tag-send">Send GHS</span>
+                <p>Customer gives GHS and receives NGN. <code>GHS ÷ send rate × 1000</code></p>
             </div>
             <div class="help-item">
-                <span class="tag tag-receive">Sending NGN</span>
-                <p>Customer gives NGN, receives GHS.<br><code>GHS = (NGN ÷ 1000) × receive rate</code></p>
-                <small>Example: ₦200,000 ÷ 1000 = 200 × 7.9 = ₵1,580</small>
+                <span class="tag tag-receive">Send NGN</span>
+                <p>Customer gives NGN and receives GHS. <code>NGN ÷ 1000 × receive rate</code></p>
             </div>
             <div class="help-item">
-                <span class="tag tag-recv-ghs">Receiving GHS</span>
-                <p>Customer wants GHS, pays NGN.<br><code>NGN to pay = (GHS wanted ÷ receive rate) × 1000</code></p>
-                <small>Example: Want ₵200 ÷ 7.9 = 25.32 × 1000 = ₦25,320</small>
+                <span class="tag tag-recv-ghs">Want GHS</span>
+                <p>Customer wants GHS and pays NGN. <code>GHS wanted ÷ receive rate × 1000</code></p>
             </div>
             <div class="help-item">
-                <span class="tag tag-recv-ngn">Receiving NGN</span>
-                <p>Customer wants NGN, pays GHS.<br><code>GHS to pay = (NGN wanted ÷ 1000) × send rate</code></p>
-                <small>Example: Want ₦200,000 ÷ 1000 = 200 × 8.5 = ₵1,700</small>
-            </div>
-            <div class="help-item">
-                <span class="tag tag-tip">Rate Format</span>
-                <p><strong>Send Rate 8.5</strong> = ₵1 = ₦8.5? No! It means ₵1 = ₦8.5 × 1000 = ₦8,500</p>
-                <p>We work in thousands of Naira for easier math.</p>
+                <span class="tag tag-recv-ngn">Want NGN</span>
+                <p>Customer wants NGN and pays GHS. <code>NGN wanted ÷ 1000 × send rate</code></p>
             </div>
         </div>
     </div>
 
-    <!-- ===== MAIN CARD ===== -->
-    <main class="card">
-
-        <!-- ─── RATES ───────────────────────────────────────── -->
-        <section class="section">
+    <main class="workspace">
+        <section class="panel rates-panel" aria-labelledby="ratesTitle">
             <div class="section-header">
-                <span class="section-label">Your Rates (per 1000 Naira)</span>
-                <span class="badge badge-v1" title="In v2, rates will sync automatically">Manual · v2: auto-sync</span>
+                <div>
+                    <p class="section-label">Rates</p>
+                    <h2 class="section-title" id="ratesTitle">Per 1000 Naira</h2>
+                </div>
+                <span class="badge badge-v1">Manual</span>
             </div>
 
             <div class="rates-row">
                 <div class="field-group">
-                    <label class="field-label">
-                        Send Rate
-                        <button class="info-icon" data-tip="When sending GHS or receiving NGN:&#10;GHS → NGN: Divide GHS by this rate, multiply by 1000&#10;Example: ₵200 ÷ 8.5 × 1000 = ₦23,529" aria-label="Send rate info">ⓘ</button>
+                    <label class="field-label" for="sendRate">
+                        Send
+                        <button class="info-icon" data-tip="Used for Send GHS and Want NGN. Example: GHS 200 ÷ 8.5 × 1000 = NGN 23,529" aria-label="Send rate info">i</button>
                     </label>
                     <div class="input-pill-row">
-                        <span class="input-tag tag-send">GHS→NGN</span>
-                        <input type="number" id="sendRate" placeholder="e.g. 8.5" min="0" step="0.01" inputmode="decimal" value="8.5" />
+                        <span class="input-tag tag-send">GHS → NGN</span>
+                        <input type="number" id="sendRate" placeholder="8.5" min="0" step="0.01" inputmode="decimal" value="8.5" />
                     </div>
-                    <small class="rate-context">Example: ₵200 ÷ 8.5 × 1000 = ₦23,529</small>
                 </div>
 
                 <div class="field-group">
-                    <label class="field-label">
-                        Receive Rate
-                        <button class="info-icon" data-tip="When receiving GHS or sending NGN:&#10;NGN → GHS: Divide NGN by 1000, multiply by this rate&#10;Example: ₦200,000 ÷ 1000 × 7.9 = ₵1,580" aria-label="Receive rate info">ⓘ</button>
+                    <label class="field-label" for="receiveRate">
+                        Receive
+                        <button class="info-icon" data-tip="Used for Send NGN and Want GHS. Example: NGN 200,000 ÷ 1000 × 7.9 = GHS 1,580" aria-label="Receive rate info">i</button>
                     </label>
                     <div class="input-pill-row">
-                        <span class="input-tag tag-receive">NGN→GHS</span>
-                        <input type="number" id="receiveRate" placeholder="e.g. 7.9" min="0" step="0.01" inputmode="decimal" value="7.9" />
+                        <span class="input-tag tag-receive">NGN → GHS</span>
+                        <input type="number" id="receiveRate" placeholder="7.9" min="0" step="0.01" inputmode="decimal" value="7.9" />
                     </div>
-                    <small class="rate-context">Example: ₦200,000 ÷ 1000 × 7.9 = ₵1,580</small>
                 </div>
             </div>
 
             <div class="spread-bar" id="spreadDisplay"></div>
         </section>
 
-
-        <!-- ═══════════════════════════════════════════════════
-             SENDING TRANSACTIONS
-        ════════════════════════════════════════════════════ -->
-        <div class="tx-group-bar tx-group-bar--send">💰 Sending Transactions</div>
-
-        <!-- Transaction Type — Sending -->
-        <section class="section">
+        <section class="panel calc-panel calc-panel--send" aria-labelledby="sendTitle">
             <div class="section-header">
-                <span class="section-label">What is the customer doing?</span>
+                <div>
+                    <p class="section-label">Sending</p>
+                    <h2 class="section-title" id="sendTitle">Customer gives money</h2>
+                </div>
             </div>
-            <div class="tx-row">
+
+            <div class="tx-row" role="group" aria-label="Sending transaction type">
                 <button class="tx-btn active" id="btn_GHS_SEND">
-                    <strong>Sending GHS to Nigeria</strong>
-                    <small>Give ₵ → Get ₦ (use send rate: ÷8.5×1000)</small>
+                    <strong>Give GHS</strong>
+                    <small>Get NGN</small>
                 </button>
                 <button class="tx-btn" id="btn_NGN_SEND">
-                    <strong>Sending NGN to Ghana</strong>
-                    <small>Give ₦ → Get ₵ (use receive rate: ÷1000×7.9)</small>
+                    <strong>Give NGN</strong>
+                    <small>Get GHS</small>
                 </button>
             </div>
-        </section>
 
-        <!-- Amount — Sending -->
-        <section class="section">
             <div class="amount-grid">
                 <div class="field-group">
-                    <label class="field-label" id="ghsSendLabel">GHS Amount (what customer gives)</label>
+                    <label class="field-label" id="ghsSendLabel" for="ghsAmount">GHS Amount (what customer gives)</label>
                     <div class="amount-input-wrap">
                         <span class="currency-sym">₵</span>
                         <input type="number" id="ghsAmount" placeholder="0.00" min="0" step="0.01" inputmode="decimal" />
@@ -143,49 +119,42 @@
                 <div class="equals-divider"><span>→</span></div>
 
                 <div class="field-group">
-                    <label class="field-label" id="ngnSendLabel">NGN Amount (what customer receives)</label>
+                    <label class="field-label" id="ngnSendLabel" for="ngnAmount">NGN Amount (what customer receives)</label>
                     <div class="amount-input-wrap">
                         <span class="currency-sym">₦</span>
                         <input type="number" id="ngnAmount" placeholder="0" min="0" step="1" inputmode="numeric" />
                     </div>
                 </div>
             </div>
+
+            <div class="result-card" id="resultCard">
+                <div class="result-main" id="resultMain">Enter an amount above</div>
+                <div class="result-sub" id="resultSub"></div>
+            </div>
         </section>
 
-        <!-- Result — Sending -->
-        <div class="result-card" id="resultCard">
-            <div class="result-main" id="resultMain">Enter an amount above</div>
-            <div class="result-sub" id="resultSub"></div>
-        </div>
-
-
-        <!-- ═══════════════════════════════════════════════════
-             RECEIVING TRANSACTIONS
-        ════════════════════════════════════════════════════ -->
-        <div class="tx-group-bar tx-group-bar--recv">📥 Receiving Transactions</div>
-
-        <!-- Transaction Type — Receiving -->
-        <section class="section">
+        <section class="panel calc-panel calc-panel--receive" aria-labelledby="receiveTitle">
             <div class="section-header">
-                <span class="section-label">What does the customer want?</span>
+                <div>
+                    <p class="section-label">Receiving</p>
+                    <h2 class="section-title" id="receiveTitle">Customer wants a payout</h2>
+                </div>
             </div>
-            <div class="tx-row">
+
+            <div class="tx-row" role="group" aria-label="Receiving transaction type">
                 <button class="tx-btn active" id="btn_GHS_RECV">
-                    <strong>Want to receive GHS in Ghana</strong>
-                    <small>Want ₵ → Pay ₦ (use receive rate: ÷7.9×1000)</small>
+                    <strong>Want GHS</strong>
+                    <small>Pay NGN</small>
                 </button>
                 <button class="tx-btn" id="btn_NGN_RECV">
-                    <strong>Want to receive NGN in Nigeria</strong>
-                    <small>Want ₦ → Pay ₵ (use send rate: ÷1000×8.5)</small>
+                    <strong>Want NGN</strong>
+                    <small>Pay GHS</small>
                 </button>
             </div>
-        </section>
 
-        <!-- Amount — Receiving -->
-        <section class="section">
             <div class="amount-grid">
                 <div class="field-group">
-                    <label class="field-label" id="ghsRecvLabel">GHS Amount (what customer wants)</label>
+                    <label class="field-label" id="ghsRecvLabel" for="recvGhsAmount">GHS Amount (what customer wants)</label>
                     <div class="amount-input-wrap">
                         <span class="currency-sym">₵</span>
                         <input type="number" id="recvGhsAmount" placeholder="0.00" min="0" step="0.01" inputmode="decimal" />
@@ -195,111 +164,93 @@
                 <div class="equals-divider"><span>→</span></div>
 
                 <div class="field-group">
-                    <label class="field-label" id="ngnRecvLabel">NGN Amount (what customer pays)</label>
+                    <label class="field-label" id="ngnRecvLabel" for="recvNgnAmount">NGN Amount (what customer pays)</label>
                     <div class="amount-input-wrap">
                         <span class="currency-sym">₦</span>
                         <input type="number" id="recvNgnAmount" placeholder="0" min="0" step="1" inputmode="numeric" />
                     </div>
                 </div>
             </div>
+
+            <div class="result-card" id="recvResultCard">
+                <div class="result-main" id="recvResultMain">Enter an amount above</div>
+                <div class="result-sub" id="recvResultSub"></div>
+            </div>
         </section>
 
-        <!-- Result — Receiving -->
-        <div class="result-card" id="recvResultCard">
-            <div class="result-main" id="recvResultMain">Enter an amount above</div>
-            <div class="result-sub" id="recvResultSub"></div>
-        </div>
-
-
-        <!-- ─── QUICK REFERENCE ────────────────────────────── -->
-        <section class="section section-quote">
+        <section class="panel quote-panel" aria-labelledby="quoteTitle">
             <div class="section-header">
-                <span class="section-label">Quick Reference</span>
-                <span class="hint-label">Type any amount to see all scenarios</span>
+                <div>
+                    <p class="section-label">Reference</p>
+                    <h2 class="section-title" id="quoteTitle">Fast quote checks</h2>
+                </div>
+                <span class="hint-label">Any amount</span>
             </div>
 
             <div class="quote-grid">
-                <!-- Send GHS -->
                 <div class="quote-card">
-                    <p class="quote-dir-label">
-                        <span class="tag tag-send">SEND GHS → GET NGN</span>
-                    </p>
+                    <p class="quote-dir-label"><span class="tag tag-send">Send GHS → Get NGN</span></p>
                     <div class="amount-input-wrap">
                         <span class="currency-sym">₵</span>
                         <input type="number" id="quoteGhs" placeholder="GHS to send" min="0" step="0.01" inputmode="decimal" />
                     </div>
                     <div class="quote-result">
-                        <span class="quote-arrow">→ Receives</span>
+                        <span class="quote-arrow">Receives</span>
                         <span class="quote-amount" id="quoteGhsAmount">—</span>
                     </div>
                     <p class="quote-rate-note" id="quoteGhsNote"></p>
                 </div>
 
-                <!-- Send NGN -->
                 <div class="quote-card">
-                    <p class="quote-dir-label">
-                        <span class="tag tag-receive">SEND NGN → GET GHS</span>
-                    </p>
+                    <p class="quote-dir-label"><span class="tag tag-receive">Send NGN → Get GHS</span></p>
                     <div class="amount-input-wrap">
                         <span class="currency-sym">₦</span>
                         <input type="number" id="quoteNgn" placeholder="NGN to send" min="0" step="1" inputmode="numeric" />
                     </div>
                     <div class="quote-result">
-                        <span class="quote-arrow">→ Receives</span>
+                        <span class="quote-arrow">Receives</span>
                         <span class="quote-amount" id="quoteNgnAmount">—</span>
                     </div>
                     <p class="quote-rate-note" id="quoteNgnNote"></p>
                 </div>
 
-                <!-- Want GHS -->
                 <div class="quote-card">
-                    <p class="quote-dir-label">
-                        <span class="tag tag-recv-ghs">WANT GHS → PAY NGN</span>
-                    </p>
+                    <p class="quote-dir-label"><span class="tag tag-recv-ghs">Want GHS → Pay NGN</span></p>
                     <div class="amount-input-wrap">
                         <span class="currency-sym">₵</span>
                         <input type="number" id="quoteWantGhs" placeholder="GHS wanted" min="0" step="0.01" inputmode="decimal" />
                     </div>
                     <div class="quote-result">
-                        <span class="quote-arrow">→ Pays</span>
+                        <span class="quote-arrow">Pays</span>
                         <span class="quote-amount" id="quoteWantGhsAmount">—</span>
                     </div>
                     <p class="quote-rate-note" id="quoteWantGhsNote"></p>
                 </div>
 
-                <!-- Want NGN -->
                 <div class="quote-card">
-                    <p class="quote-dir-label">
-                        <span class="tag tag-recv-ngn">WANT NGN → PAY GHS</span>
-                    </p>
+                    <p class="quote-dir-label"><span class="tag tag-recv-ngn">Want NGN → Pay GHS</span></p>
                     <div class="amount-input-wrap">
                         <span class="currency-sym">₦</span>
                         <input type="number" id="quoteWantNgn" placeholder="NGN wanted" min="0" step="1" inputmode="numeric" />
                     </div>
                     <div class="quote-result">
-                        <span class="quote-arrow">→ Pays</span>
+                        <span class="quote-arrow">Pays</span>
                         <span class="quote-amount" id="quoteWantNgnAmount">—</span>
                     </div>
                     <p class="quote-rate-note" id="quoteWantNgnNote"></p>
                 </div>
             </div>
         </section>
-
     </main>
 
-    <!-- FOOTER -->
     <footer class="app-footer">
-        Rate Tool v1 · Rates per 1000 Naira · Send: 8.5 · Receive: 7.9
+        Rate Desk v1 · Manual rates per 1000 Naira
     </footer>
-
 </div>
 
-<!-- Floating tooltip -->
 <div class="tooltip" id="tooltip" role="tooltip" aria-live="polite"></div>
 
 <script src="index.js"></script>
-
-<!-- ===== SERVICE WORKER REGISTRATION ===== -->
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {

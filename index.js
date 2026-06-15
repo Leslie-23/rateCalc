@@ -147,6 +147,12 @@ function saveRate(key, value) {
     localStorage.setItem(key, value);
 }
 
+function setQuoteResult(amountEl, noteEl, amountText, noteText, hasValue) {
+    amountEl.textContent = amountText;
+    noteEl.textContent = noteText;
+    amountEl.closest(".quote-result").classList.toggle("quote-has-value", hasValue);
+}
+
 
 // =====================================================================
 // CALCULATION ENGINE — CORRECTED for West African market
@@ -340,17 +346,17 @@ function updateSpread() {
         
         if (spread > 0) {
             spreadDisplay.className = "spread-bar spread-ok";
-            spreadDisplay.innerHTML = `💰 Your profit margin: ${spread.toFixed(1)}% (Send: ${sendRate}, Receive: ${receiveRate})`;
+            spreadDisplay.textContent = `Profit margin: ${spread.toFixed(1)}% (Send: ${sendRate}, Receive: ${receiveRate})`;
         } else if (spread === 0) {
             spreadDisplay.className = "spread-bar spread-warn";
-            spreadDisplay.innerHTML = "⚠️ No profit margin — rates are equal";
+            spreadDisplay.textContent = "No profit margin - rates are equal";
         } else {
             spreadDisplay.className = "spread-bar spread-error";
-            spreadDisplay.innerHTML = "🚨 ARBITRAGE RISK: Send rate below receive rate!";
+            spreadDisplay.textContent = "Arbitrage risk: send rate is below receive rate.";
         }
     } else {
         spreadDisplay.className = "spread-bar";
-        spreadDisplay.innerHTML = "Enter both rates to see your profit margin";
+        spreadDisplay.textContent = "Enter both rates to see your profit margin";
     }
 }
 
@@ -362,44 +368,36 @@ function updateQuote() {
     const ghsVal = parseFloat(quoteGhsInput.value) || 0;
     if (state.sendRate > 0 && ghsVal > 0) {
         const ngn = (ghsVal / state.sendRate) * 1000;
-        quoteGhsAmount.textContent = `₦${fmt(ngn, 0)}`;
-        quoteGhsNote.textContent = `Send rate: ${state.sendRate} (${ghsVal} ÷ ${state.sendRate} × 1000)`;
+        setQuoteResult(quoteGhsAmount, quoteGhsNote, `₦${fmt(ngn, 0)}`, `Send rate: ${state.sendRate} (${ghsVal} ÷ ${state.sendRate} × 1000)`, true);
     } else {
-        quoteGhsAmount.textContent = "—";
-        quoteGhsNote.textContent = state.sendRate > 0 ? "Enter GHS amount" : "Set send rate first";
+        setQuoteResult(quoteGhsAmount, quoteGhsNote, "—", state.sendRate > 0 ? "Enter GHS amount" : "Set send rate first", false);
     }
     
     // Send NGN → Get GHS
     const ngnVal = parseFloat(quoteNgnInput.value) || 0;
     if (state.receiveRate > 0 && ngnVal > 0) {
         const ghs = (ngnVal / 1000) * state.receiveRate;
-        quoteNgnAmount.textContent = `₵${fmt(ghs)}`;
-        quoteNgnNote.textContent = `Receive rate: ${state.receiveRate} (${fmt(ngnVal, 0)} ÷ 1000 × ${state.receiveRate})`;
+        setQuoteResult(quoteNgnAmount, quoteNgnNote, `₵${fmt(ghs)}`, `Receive rate: ${state.receiveRate} (${fmt(ngnVal, 0)} ÷ 1000 × ${state.receiveRate})`, true);
     } else {
-        quoteNgnAmount.textContent = "—";
-        quoteNgnNote.textContent = state.receiveRate > 0 ? "Enter NGN amount" : "Set receive rate first";
+        setQuoteResult(quoteNgnAmount, quoteNgnNote, "—", state.receiveRate > 0 ? "Enter NGN amount" : "Set receive rate first", false);
     }
     
     // Want GHS → Pay NGN
     const wantGhs = parseFloat(quoteWantGhsInput.value) || 0;
     if (state.receiveRate > 0 && wantGhs > 0) {
         const payNgn = (wantGhs / state.receiveRate) * 1000;
-        quoteWantGhsAmount.textContent = `₦${fmt(payNgn, 0)}`;
-        quoteWantGhsNote.textContent = `Receive rate: ${state.receiveRate} (${wantGhs} ÷ ${state.receiveRate} × 1000)`;
+        setQuoteResult(quoteWantGhsAmount, quoteWantGhsNote, `₦${fmt(payNgn, 0)}`, `Receive rate: ${state.receiveRate} (${wantGhs} ÷ ${state.receiveRate} × 1000)`, true);
     } else {
-        quoteWantGhsAmount.textContent = "—";
-        quoteWantGhsNote.textContent = state.receiveRate > 0 ? "Enter GHS wanted" : "Set receive rate first";
+        setQuoteResult(quoteWantGhsAmount, quoteWantGhsNote, "—", state.receiveRate > 0 ? "Enter GHS wanted" : "Set receive rate first", false);
     }
     
     // Want NGN → Pay GHS
     const wantNgn = parseFloat(quoteWantNgnInput.value) || 0;
     if (state.sendRate > 0 && wantNgn > 0) {
         const payGhs = (wantNgn / 1000) * state.sendRate;
-        quoteWantNgnAmount.textContent = `₵${fmt(payGhs)}`;
-        quoteWantNgnNote.textContent = `Send rate: ${state.sendRate} (${fmt(wantNgn, 0)} ÷ 1000 × ${state.sendRate})`;
+        setQuoteResult(quoteWantNgnAmount, quoteWantNgnNote, `₵${fmt(payGhs)}`, `Send rate: ${state.sendRate} (${fmt(wantNgn, 0)} ÷ 1000 × ${state.sendRate})`, true);
     } else {
-        quoteWantNgnAmount.textContent = "—";
-        quoteWantNgnNote.textContent = state.sendRate > 0 ? "Enter NGN wanted" : "Set send rate first";
+        setQuoteResult(quoteWantNgnAmount, quoteWantNgnNote, "—", state.sendRate > 0 ? "Enter NGN wanted" : "Set send rate first", false);
     }
 }
 
@@ -536,6 +534,7 @@ helpToggle.addEventListener("click", () => {
     const isOpen = helpPanel.classList.toggle("open");
     helpIcon.textContent = isOpen ? "✕" : "?";
     helpToggle.classList.toggle("active", isOpen);
+    helpToggle.setAttribute("aria-label", isOpen ? "Close help guide" : "Open help guide");
 });
 
 // Tooltips
