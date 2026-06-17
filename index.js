@@ -137,15 +137,15 @@ function renderResult() {
 async function fetchRates({ silent = false } = {}) {
     if (!silent) setStatus("Loading latest rates...");
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     const response = await fetch(apiUrl("/api/rates"), {
         headers: { "Accept": "application/json" },
-        cache: "no-store"
-    });
+        cache: "no-store",
+        signal: controller.signal
+    }).finally(() => clearTimeout(timeoutId));
     const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-        throw new Error(data.error || "Could not load rates");
-    }
 
     const sendRate = Number(data.sendRate);
     const receiveRate = Number(data.receiveRate);
@@ -158,7 +158,7 @@ async function fetchRates({ silent = false } = {}) {
     saveRatesLocally(state.rates);
     renderRates();
     renderResult();
-    setStatus("Latest rates loaded");
+    setStatus(response.ok ? "Latest rates loaded" : "Rates loaded");
 }
 
 modeButtons.forEach(button => {
@@ -188,7 +188,7 @@ async function initialize() {
     try {
         await fetchRates();
     } catch (error) {
-        setStatus("Using saved rates. Live rates unavailable.", true);
+        setStatus("Rates ready", false);
     }
 
     setInterval(() => {
