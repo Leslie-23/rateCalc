@@ -27,7 +27,10 @@ function getClient() {
     }
 
     if (!clientPromise) {
-        const client = new MongoClient(MONGODB_URI);
+        const client = new MongoClient(MONGODB_URI, {
+            serverSelectionTimeoutMS: 10000,
+            connectTimeoutMS: 10000
+        });
         clientPromise = client.connect();
     }
 
