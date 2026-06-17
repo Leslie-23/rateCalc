@@ -1,0 +1,130 @@
+const { MongoClient } = require("mongodb");
+
+const MONGODB_URI = process.env.MONGODB_URI || "";
+const DB_NAME = process.env.RATES_DB_NAME || "rateTool";
+const COLLECTION_NAME = process.env.RATES_COLLECTION || "rates";
+const DOC_ID = process.env.RATES_DOC_ID || "ghs-ngn";
+const WRITE_TOKEN = process.env.RATE_WRITE_TOKEN || "";
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map(origin => origin.trim())
+    .filter(Boolean);
+
+const DEFAULT_RATES = {
+    sendRate: 8.5,
+    receiveRate: 7.9
+};
+
+let clientPromise;
+
+function getClient() {
+    if (!MONGODB_URI) {
+        throw new Error("MONGODB_URI is not configured");
+    }
+
+    if (!clientPromise) {
+        const client = new MongoClient(MONGODB_URI);
+        clientPromise = client.connect();
+    }
+
+    return clientPromise;
+}
+
+async function getRatesCollection() {
+    const client = await getClient();
+    return client.db(DB_NAME).collection(COLLECTION_NAME);
+}
+
+function isAllowedOrigin(origin) {
+    return !origin || ALLOWED_ORIGINS.length === 0 || ALLOWED_ORIGINS.includes(origin);
+}
+
+function setCors(req, res) {
+    const origin = req.headers.origin;
+
+    if (isAllowedOrigin(origin)) {
+        if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Vary", "Origin");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        res.setHeader("Access-Control-Allow-Methods", "GET, PUT, OPTIONS");
+        return true;
+    }
+
+    return false;
+}
+
+function parseRate(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+module.exports = async function handler(req, res) {
+    if (!setCors(req, res)) {
+        return res.status(403).json({ error: "Origin is not allowed" });
+    }
+
+    if (req.method === "OPTIONS") {
+        return res.status(204).end();
+    }
+
+    if (req.method === "GET") {
+        try {
+            const collection = await getRatesCollection();
+            const saved = await collection.findOne({ _id: DOC_ID });
+
+            return res.status(200).json({
+                ...DEFAULT_RATES,
+                ...(saved || {}),
+                _id: undefined
+            });
+        } catch (error) {
+            return res.status(503).json({
+                error: error.message,
+                ...DEFAULT_RATES
+            });
+        }
+    }
+
+    if (req.method === "PUT") {
+        if (WRITE_TOKEN) {
+            const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+            if (token !== WRITE_TOKEN) {
+                return res.status(401).json({ error: "Unauthorized" });
+            }
+        }
+
+        const sendRate = parseRate(req.body && req.body.sendRate);
+        const receiveRate = parseRate(req.body && req.body.receiveRate);
+
+        if (!sendRate || !receiveRate) {
+            return res.status(400).json({ error: "sendRate and receiveRate must be positive numbers" });
+        }
+
+        try {
+            const collection = await getRatesCollection();
+            const savedAt = new Date();
+
+            await collection.updateOne(
+                { _id: DOC_ID },
+                {
+                    $set: {
+                        sendRate,
+                        receiveRate,
+                        savedAt
+                    },
+                    $setOnInsert: {
+                        createdAt: savedAt
+                    }
+                },
+                { upsert: true }
+            );
+
+            return res.status(200).json({ sendRate, receiveRate, savedAt });
+        } catch (error) {
+            return res.status(503).json({ error: error.message });
+        }
+    }
+
+    res.setHeader("Allow", "GET, PUT, OPTIONS");
+    return res.status(405).json({ error: "Method not allowed" });
+};
