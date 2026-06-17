@@ -1,7 +1,7 @@
-{
-    "name": "GHS ↔ NGN Rate Tool",
-    "short_name": "Rate Tool",
-    "description": "GHS to NGN exchange rate calculator for forex operators. Set your own send and receive rates, calculate all transaction directions instantly.",
+﻿{
+    "name": "GHS / NGN Exchange Calculator",
+    "short_name": "GHS NGN",
+    "description": "GHS to NGN exchange calculator with live shared rates.",
     "start_url": "./index.html",
     "scope": "./",
     "display": "standalone",
@@ -49,3 +49,4 @@
 
     "prefer_related_applications": false
 }
+
