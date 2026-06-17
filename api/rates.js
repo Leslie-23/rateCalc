@@ -9,6 +9,10 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
     .split(",")
     .map(origin => origin.trim())
     .filter(Boolean);
+const WRITE_ORIGINS = (process.env.WRITE_ORIGINS || "")
+    .split(",")
+    .map(origin => origin.trim())
+    .filter(Boolean);
 
 const DEFAULT_RATES = {
     sendRate: 8.5,
@@ -58,6 +62,16 @@ function parseRate(value) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function canWrite(req) {
+    if (WRITE_TOKEN) {
+        const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+        return token === WRITE_TOKEN;
+    }
+
+    const origin = req.headers.origin || "";
+    return WRITE_ORIGINS.length > 0 && WRITE_ORIGINS.includes(origin);
+}
+
 module.exports = async function handler(req, res) {
     if (!setCors(req, res)) {
         return res.status(403).json({ error: "Origin is not allowed" });
@@ -86,11 +100,8 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === "PUT") {
-        if (WRITE_TOKEN) {
-            const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-            if (token !== WRITE_TOKEN) {
-                return res.status(401).json({ error: "Unauthorized" });
-            }
+        if (!canWrite(req)) {
+            return res.status(401).json({ error: "Unauthorized" });
         }
 
         const sendRate = parseRate(req.body && req.body.sendRate);
