@@ -8,7 +8,7 @@
 // To force users to get a new version, bump CACHE_VERSION below.
 // =====================================================================
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3-customer';
 const CACHE_NAME    = `ghs-ngn-${CACHE_VERSION}`;
 
 // All files the app needs to work offline
