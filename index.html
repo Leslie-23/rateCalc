@@ -16,6 +16,7 @@
 
     <meta name="msapplication-TileColor" content="#0f5f46" />
     <meta name="msapplication-TileImage" href="icons/icon.svg" />
+    <script src="config.js"></script>
 </head>
 <body>
 <div class="app">
@@ -52,7 +53,7 @@
     </div>
 
     <main class="workspace">
-        <section class="panel rates-panel" aria-labelledby="ratesTitle">
+        <section class="panel rates-panel" id="ratesPanel" aria-labelledby="ratesTitle">
             <div class="section-header">
                 <div>
                     <p class="section-label">Rates</p>
@@ -86,6 +87,7 @@
             </div>
 
             <div class="spread-bar" id="spreadDisplay"></div>
+            <div class="sync-status" id="syncStatus" aria-live="polite"></div>
         </section>
 
         <section class="panel calc-panel calc-panel--send" aria-labelledby="sendTitle">

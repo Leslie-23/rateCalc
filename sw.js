@@ -8,7 +8,7 @@
 // To force users to get a new version, bump CACHE_VERSION below.
 // =====================================================================
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME    = `ghs-ngn-${CACHE_VERSION}`;
 
 // All files the app needs to work offline
@@ -17,6 +17,7 @@ const ASSETS = [
     './index.html',
     './index.css',
     './index.js',
+    './config.js',
     './manifest.json',
     './icons/icon.svg',
     './icons/icon-192.png',
@@ -68,6 +69,7 @@ self.addEventListener('fetch', event => {
 
     const url = new URL(event.request.url);
     if (url.origin !== location.origin) return;  // Skip cross-origin (future API calls)
+    if (url.pathname.startsWith('/api/')) return; // Rates must always come from network
 
     event.respondWith(
         caches.match(event.request).then(cached => {

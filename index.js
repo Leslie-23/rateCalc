@@ -80,12 +80,21 @@ const recvState = {
     ngnAmount: 0
 };
 
+const appConfig = {
+    apiBase: String(window.RATE_API_BASE || "").replace(/\/$/, ""),
+    adminToken: String(window.RATE_ADMIN_TOKEN || ""),
+    customerFacing: Boolean(window.CUSTOMER_FACING)
+};
+
+let saveRatesTimer = null;
+
 
 // ---- DOM ELEMENTS ----
 
 const sendRateInput = document.getElementById("sendRate");
 const receiveRateInput = document.getElementById("receiveRate");
 const spreadDisplay = document.getElementById("spreadDisplay");
+const syncStatus = document.getElementById("syncStatus");
 
 // Sending calculator
 const ghsAmountInput = document.getElementById("ghsAmount");
@@ -136,15 +145,102 @@ function fmt(n, dec = 2) {
     });
 }
 
-function loadRates() {
-    state.sendRate = parseFloat(localStorage.getItem("sendRate")) || 8.5;
-    state.receiveRate = parseFloat(localStorage.getItem("receiveRate")) || 7.9;
+function apiUrl(path) {
+    return `${appConfig.apiBase}${path}`;
+}
+
+function setSyncStatus(message) {
+    if (syncStatus) syncStatus.textContent = message || "";
+}
+
+function applyRates(sendRate, receiveRate) {
+    state.sendRate = parseFloat(sendRate) || 8.5;
+    state.receiveRate = parseFloat(receiveRate) || 7.9;
     sendRateInput.value = state.sendRate;
     receiveRateInput.value = state.receiveRate;
 }
 
+function loadLocalRates() {
+    applyRates(
+        localStorage.getItem("sendRate") || 8.5,
+        localStorage.getItem("receiveRate") || 7.9
+    );
+}
+
+async function loadRemoteRates({ silent = false } = {}) {
+    if (!silent) setSyncStatus("Loading shared rates...");
+
+    const response = await fetch(apiUrl("/api/rates"), {
+        headers: { "Accept": "application/json" },
+        cache: "no-store"
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(data.error || "Could not load shared rates");
+    }
+
+    applyRates(data.sendRate, data.receiveRate);
+    saveRate("sendRate", state.sendRate);
+    saveRate("receiveRate", state.receiveRate);
+    updateSpread();
+    renderSendingResult();
+    renderReceivingResult();
+    updateQuote();
+    setSyncStatus(silent ? "" : "Shared rates loaded");
+}
+
+async function loadRates() {
+    loadLocalRates();
+
+    try {
+        await loadRemoteRates();
+    } catch (error) {
+        setSyncStatus(`Using local rates. ${error.message}`);
+    }
+}
+
 function saveRate(key, value) {
     localStorage.setItem(key, value);
+}
+
+async function saveRatesRemote() {
+    const headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    };
+
+    if (appConfig.adminToken) {
+        headers.Authorization = `Bearer ${appConfig.adminToken}`;
+    }
+
+    const response = await fetch(apiUrl("/api/rates"), {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+            sendRate: state.sendRate,
+            receiveRate: state.receiveRate
+        })
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(data.error || "Could not save shared rates");
+    }
+
+    setSyncStatus("Shared rates saved");
+}
+
+function queueRateSave() {
+    if (appConfig.customerFacing) return;
+
+    clearTimeout(saveRatesTimer);
+    setSyncStatus("Saving shared rates...");
+    saveRatesTimer = setTimeout(() => {
+        saveRatesRemote().catch(error => {
+            setSyncStatus(`Local rates saved. ${error.message}`);
+        });
+    }, 350);
 }
 
 function setQuoteResult(amountEl, noteEl, amountText, noteText, hasValue) {
@@ -408,6 +504,7 @@ function updateQuote() {
 sendRateInput.addEventListener("input", (e) => {
     state.sendRate = parseFloat(e.target.value) || 0;
     saveRate("sendRate", state.sendRate);
+    queueRateSave();
     updateSpread();
     renderSendingResult();
     renderReceivingResult();
@@ -417,6 +514,7 @@ sendRateInput.addEventListener("input", (e) => {
 receiveRateInput.addEventListener("input", (e) => {
     state.receiveRate = parseFloat(e.target.value) || 0;
     saveRate("receiveRate", state.receiveRate);
+    queueRateSave();
     updateSpread();
     renderSendingResult();
     renderReceivingResult();
@@ -555,8 +653,20 @@ document.addEventListener("click", () => tooltip.classList.remove("visible"));
 
 // ---- INITIALIZATION ----
 
-loadRates();
-updateSpread();
-renderSendingResult();
-renderReceivingResult();
-updateQuote();
+async function initialize() {
+    if (appConfig.customerFacing) {
+        document.body.classList.add("customer-facing");
+    }
+
+    await loadRates();
+    updateSpread();
+    renderSendingResult();
+    renderReceivingResult();
+    updateQuote();
+
+    setInterval(() => {
+        loadRemoteRates({ silent: true }).catch(() => {});
+    }, 60000);
+}
+
+initialize();
