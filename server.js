@@ -12,6 +12,10 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
     .split(",")
     .map(origin => origin.trim())
     .filter(Boolean);
+const WRITE_ORIGINS = (process.env.WRITE_ORIGINS || "")
+    .split(",")
+    .map(origin => origin.trim())
+    .filter(Boolean);
 
 const DEFAULT_RATES = {
     sendRate: 8.5,
@@ -45,6 +49,16 @@ function isAllowedOrigin(origin) {
 function parseRate(value) {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function canWrite(req) {
+    if (WRITE_TOKEN) {
+        const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+        return token === WRITE_TOKEN;
+    }
+
+    const origin = req.headers.origin || "";
+    return WRITE_ORIGINS.length > 0 && WRITE_ORIGINS.includes(origin);
 }
 
 const app = express();
@@ -87,11 +101,8 @@ app.get("/api/rates", async (req, res) => {
 });
 
 app.put("/api/rates", async (req, res) => {
-    if (WRITE_TOKEN) {
-        const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-        if (token !== WRITE_TOKEN) {
-            return res.status(401).json({ error: "Unauthorized" });
-        }
+    if (!canWrite(req)) {
+        return res.status(401).json({ error: "Unauthorized" });
     }
 
     const sendRate = parseRate(req.body && req.body.sendRate);

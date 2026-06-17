@@ -20,6 +20,7 @@ Server environment variables:
 - `MONGODB_URI` - MongoDB connection string used to persist rates.
 - `RATE_WRITE_TOKEN` - optional token required for rate updates.
 - `ALLOWED_ORIGINS` - optional comma-separated list of allowed browser origins for separate deployments.
+- `WRITE_ORIGINS` - optional comma-separated list of browser origins allowed to update rates when `RATE_WRITE_TOKEN` is not set.
 - `RATES_DB_NAME`, `RATES_COLLECTION`, `RATES_DOC_ID` - optional MongoDB storage names.
 
 Browser configuration lives in `config.js`:
