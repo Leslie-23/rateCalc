@@ -70,7 +70,9 @@ const state = {
     txKey: "GHS_SEND",
     lastEdited: "ghs",
     ghsAmount: 0,
-    ngnAmount: 0
+    ngnAmount: 0,
+    activeDesk: "send",
+    dealerRate: 0
 };
 
 const recvState = {
@@ -95,6 +97,15 @@ const sendRateInput = document.getElementById("sendRate");
 const receiveRateInput = document.getElementById("receiveRate");
 const spreadDisplay = document.getElementById("spreadDisplay");
 const syncStatus = document.getElementById("syncStatus");
+const dealerToolButton = document.getElementById("dealerToolButton");
+const dealerModal = document.getElementById("dealerModal");
+const dealerModalClose = document.getElementById("dealerModalClose");
+const dealerRateInput = document.getElementById("dealerRateInput");
+const dealerQuoteValue = document.getElementById("dealerQuoteValue");
+const dealerDisparityValue = document.getElementById("dealerDisparityValue");
+const dealerProfitValue = document.getElementById("dealerProfitValue");
+const rateSpreadValue = document.getElementById("rateSpreadValue");
+const dealerProfitNote = document.getElementById("dealerProfitNote");
 
 // Sending calculator
 const ghsAmountInput = document.getElementById("ghsAmount");
@@ -149,6 +160,11 @@ function apiUrl(path) {
     return `${appConfig.apiBase}${path}`;
 }
 
+function fmtSigned(n, dec = 2) {
+    const sign = n > 0 ? "+" : n < 0 ? "-" : "";
+    return `${sign}${fmt(Math.abs(n), dec)}`;
+}
+
 function setSyncStatus(message) {
     if (syncStatus) syncStatus.textContent = message || "";
 }
@@ -158,6 +174,7 @@ function applyRates(sendRate, receiveRate) {
     state.receiveRate = parseFloat(receiveRate) || 7.9;
     sendRateInput.value = state.sendRate;
     receiveRateInput.value = state.receiveRate;
+    renderDealerProfit();
 }
 
 function loadLocalRates() {
@@ -165,6 +182,12 @@ function loadLocalRates() {
         localStorage.getItem("sendRate") || 8.5,
         localStorage.getItem("receiveRate") || 7.9
     );
+
+    const dealerRate = parseFloat(localStorage.getItem("dealerRate"));
+    if (dealerRate > 0) {
+        state.dealerRate = dealerRate;
+        dealerRateInput.value = dealerRate;
+    }
 }
 
 async function loadRemoteRates({ silent = false } = {}) {
@@ -247,6 +270,91 @@ function setQuoteResult(amountEl, noteEl, amountText, noteText, hasValue) {
     amountEl.textContent = amountText;
     noteEl.textContent = noteText;
     amountEl.closest(".quote-result").classList.toggle("quote-has-value", hasValue);
+}
+
+function getActiveDealerQuote() {
+    const isReceivingDesk = state.activeDesk === "receive";
+    const txKey = isReceivingDesk ? recvState.txKey : state.txKey;
+    const deskState = isReceivingDesk ? recvState : state;
+    const result = isReceivingDesk
+        ? calculateReceiving(txKey, deskState.lastEdited, deskState.ghsAmount, deskState.ngnAmount)
+        : calculateSending(txKey, deskState.lastEdited, deskState.ghsAmount, deskState.ngnAmount);
+
+    if (!result || result.error || result.clear || !(result.ngn > 0)) return null;
+
+    const rateType = TX[txKey].rateType;
+    const customerRate = rateType === "send" ? state.sendRate : state.receiveRate;
+    const profitRate = rateType === "send"
+        ? state.sendRate - state.dealerRate
+        : state.dealerRate - state.receiveRate;
+    const dealerDisparity = state.dealerRate - customerRate;
+
+    return {
+        deskLabel: isReceivingDesk ? "Receiving" : "Sending",
+        customerRate,
+        dealerDisparity,
+        ngnAmount: result.ngn,
+        profitRate,
+        spreadRate: state.sendRate - state.receiveRate
+    };
+}
+
+function setProfitClass(element, value) {
+    element.classList.toggle("positive", value > 0);
+    element.classList.toggle("negative", value < 0);
+}
+
+function renderDealerProfit() {
+    if (!dealerQuoteValue) return;
+
+    const quote = getActiveDealerQuote();
+    const spreadRate = state.sendRate - state.receiveRate;
+
+    rateSpreadValue.textContent = `${fmtSigned(spreadRate)} / NGN 1000`;
+
+    if (!quote) {
+        dealerQuoteValue.textContent = "Enter amount";
+        dealerDisparityValue.textContent = state.dealerRate > 0 ? "--" : "Set dealer rate";
+        dealerProfitValue.textContent = "--";
+        dealerProfitNote.textContent = "Set a dealer rate and enter an amount in the active calculator.";
+        setProfitClass(dealerDisparityValue, 0);
+        setProfitClass(dealerProfitValue, 0);
+        return;
+    }
+
+    dealerQuoteValue.textContent = `${quote.deskLabel}: NGN ${fmt(quote.ngnAmount, 0)}`;
+
+    if (!(state.dealerRate > 0)) {
+        dealerDisparityValue.textContent = "Set dealer rate";
+        dealerProfitValue.textContent = "--";
+        dealerProfitNote.textContent = `Active customer rate is ${fmt(quote.customerRate)} per 1000 NGN.`;
+        setProfitClass(dealerDisparityValue, 0);
+        setProfitClass(dealerProfitValue, 0);
+        return;
+    }
+
+    const profit = (quote.ngnAmount / 1000) * quote.profitRate;
+    const spreadValue = (quote.ngnAmount / 1000) * quote.spreadRate;
+
+    dealerDisparityValue.textContent = `${fmtSigned(quote.dealerDisparity)} / NGN 1000`;
+    dealerProfitValue.textContent = `${profit > 0 ? "+" : profit < 0 ? "-" : ""}GHS ${fmt(Math.abs(profit))}`;
+    rateSpreadValue.textContent = `${fmtSigned(quote.spreadRate)} / NGN 1000`;
+    dealerProfitNote.textContent = `Upper/lower spread value on this quote is GHS ${fmt(spreadValue)}.`;
+    setProfitClass(dealerDisparityValue, quote.dealerDisparity);
+    setProfitClass(dealerProfitValue, profit);
+}
+
+function openDealerModal() {
+    dealerModal.hidden = false;
+    document.body.classList.add("modal-open");
+    renderDealerProfit();
+    window.setTimeout(() => dealerRateInput.focus(), 0);
+}
+
+function closeDealerModal() {
+    dealerModal.hidden = true;
+    document.body.classList.remove("modal-open");
+    dealerToolButton.focus();
 }
 
 
@@ -509,6 +617,7 @@ sendRateInput.addEventListener("input", (e) => {
     renderSendingResult();
     renderReceivingResult();
     updateQuote();
+    renderDealerProfit();
 });
 
 receiveRateInput.addEventListener("input", (e) => {
@@ -519,10 +628,12 @@ receiveRateInput.addEventListener("input", (e) => {
     renderSendingResult();
     renderReceivingResult();
     updateQuote();
+    renderDealerProfit();
 });
 
 // Sending transaction type
 document.getElementById("btn_GHS_SEND").addEventListener("click", () => {
+    state.activeDesk = "send";
     state.txKey = "GHS_SEND";
     state.lastEdited = "ghs";
     state.ghsAmount = 0;
@@ -537,9 +648,11 @@ document.getElementById("btn_GHS_SEND").addEventListener("click", () => {
     ghsSendLabel.textContent = "GHS Amount (what customer gives)";
     ngnSendLabel.textContent = "NGN Amount (what customer receives)";
     renderSendingResult();
+    renderDealerProfit();
 });
 
 document.getElementById("btn_NGN_SEND").addEventListener("click", () => {
+    state.activeDesk = "send";
     state.txKey = "NGN_SEND";
     state.lastEdited = "ngn";
     state.ghsAmount = 0;
@@ -554,10 +667,12 @@ document.getElementById("btn_NGN_SEND").addEventListener("click", () => {
     ghsSendLabel.textContent = "GHS Amount (what customer receives)";
     ngnSendLabel.textContent = "NGN Amount (what customer gives)";
     renderSendingResult();
+    renderDealerProfit();
 });
 
 // Receiving transaction type
 document.getElementById("btn_GHS_RECV").addEventListener("click", () => {
+    state.activeDesk = "receive";
     recvState.txKey = "GHS_RECV";
     recvState.lastEdited = "ghs";
     recvState.ghsAmount = 0;
@@ -572,9 +687,11 @@ document.getElementById("btn_GHS_RECV").addEventListener("click", () => {
     ghsRecvLabel.textContent = "GHS Amount (what customer wants)";
     ngnRecvLabel.textContent = "NGN Amount (what customer pays)";
     renderReceivingResult();
+    renderDealerProfit();
 });
 
 document.getElementById("btn_NGN_RECV").addEventListener("click", () => {
+    state.activeDesk = "receive";
     recvState.txKey = "NGN_RECV";
     recvState.lastEdited = "ngn";
     recvState.ghsAmount = 0;
@@ -589,36 +706,45 @@ document.getElementById("btn_NGN_RECV").addEventListener("click", () => {
     ghsRecvLabel.textContent = "GHS Amount (what customer pays)";
     ngnRecvLabel.textContent = "NGN Amount (what customer wants)";
     renderReceivingResult();
+    renderDealerProfit();
 });
 
 // Sending amount inputs
 ghsAmountInput.addEventListener("input", (e) => {
+    state.activeDesk = "send";
     state.lastEdited = "ghs";
     state.ghsAmount = parseFloat(e.target.value) || 0;
     renderSendingResult();
     updateQuote();
+    renderDealerProfit();
 });
 
 ngnAmountInput.addEventListener("input", (e) => {
+    state.activeDesk = "send";
     state.lastEdited = "ngn";
     state.ngnAmount = parseFloat(e.target.value) || 0;
     renderSendingResult();
     updateQuote();
+    renderDealerProfit();
 });
 
 // Receiving amount inputs
 recvGhsAmountInput.addEventListener("input", (e) => {
+    state.activeDesk = "receive";
     recvState.lastEdited = "ghs";
     recvState.ghsAmount = parseFloat(e.target.value) || 0;
     renderReceivingResult();
     updateQuote();
+    renderDealerProfit();
 });
 
 recvNgnAmountInput.addEventListener("input", (e) => {
+    state.activeDesk = "receive";
     recvState.lastEdited = "ngn";
     recvState.ngnAmount = parseFloat(e.target.value) || 0;
     renderReceivingResult();
     updateQuote();
+    renderDealerProfit();
 });
 
 // Quote inputs
@@ -649,6 +775,32 @@ document.querySelectorAll(".info-icon").forEach(btn => {
 });
 
 document.addEventListener("click", () => tooltip.classList.remove("visible"));
+
+dealerToolButton.addEventListener("click", openDealerModal);
+dealerModalClose.addEventListener("click", closeDealerModal);
+
+dealerModal.addEventListener("click", (event) => {
+    if (event.target === dealerModal) closeDealerModal();
+});
+
+dealerRateInput.addEventListener("input", () => {
+    const dealerRate = parseFloat(dealerRateInput.value);
+    state.dealerRate = dealerRate > 0 ? dealerRate : 0;
+
+    if (state.dealerRate > 0) {
+        localStorage.setItem("dealerRate", state.dealerRate);
+    } else {
+        localStorage.removeItem("dealerRate");
+    }
+
+    renderDealerProfit();
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !dealerModal.hidden) {
+        closeDealerModal();
+    }
+});
 
 
 // ---- INITIALIZATION ----
