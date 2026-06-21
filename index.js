@@ -287,14 +287,14 @@ function getActiveDealerQuote() {
     const profitRate = rateType === "send"
         ? state.sendRate - state.dealerRate
         : state.dealerRate - state.receiveRate;
-    const dealerDisparity = state.dealerRate - customerRate;
+    const profitRateDifference = profitRate;
 
     return {
         deskLabel: isReceivingDesk ? "Receiving" : "Sending",
         customerRate,
-        dealerDisparity,
         ngnAmount: result.ngn,
         profitRate,
+        profitRateDifference,
         spreadRate: state.sendRate - state.receiveRate
     };
 }
@@ -336,11 +336,11 @@ function renderDealerProfit() {
     const profit = (quote.ngnAmount / 1000) * quote.profitRate;
     const spreadValue = (quote.ngnAmount / 1000) * quote.spreadRate;
 
-    dealerDisparityValue.textContent = `${fmtSigned(quote.dealerDisparity)} / NGN 1000`;
+    dealerDisparityValue.textContent = `${fmtSigned(quote.profitRateDifference)} / NGN 1000`;
     dealerProfitValue.textContent = `${profit > 0 ? "+" : profit < 0 ? "-" : ""}GHS ${fmt(Math.abs(profit))}`;
     rateSpreadValue.textContent = `${fmtSigned(quote.spreadRate)} / NGN 1000`;
     dealerProfitNote.textContent = `Upper/lower spread value on this quote is GHS ${fmt(spreadValue)}.`;
-    setProfitClass(dealerDisparityValue, quote.dealerDisparity);
+    setProfitClass(dealerDisparityValue, quote.profitRateDifference);
     setProfitClass(dealerProfitValue, profit);
 }
 
