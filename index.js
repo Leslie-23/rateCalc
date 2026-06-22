@@ -72,7 +72,10 @@ const state = {
     ghsAmount: 0,
     ngnAmount: 0,
     activeDesk: "send",
-    dealerRate: 0
+    dealerRate: 0,
+    dealerCustomerRateType: "send",
+    dealerGhsAmount: 0,
+    dealerNgnAmount: 0
 };
 
 const recvState = {
@@ -101,6 +104,12 @@ const dealerToolButton = document.getElementById("dealerToolButton");
 const dealerModal = document.getElementById("dealerModal");
 const dealerModalClose = document.getElementById("dealerModalClose");
 const dealerRateInput = document.getElementById("dealerRateInput");
+const dealerSendRateInput = document.getElementById("dealerSendRateInput");
+const dealerReceiveRateInput = document.getElementById("dealerReceiveRateInput");
+const dealerNgnInput = document.getElementById("dealerNgnInput");
+const dealerGhsInput = document.getElementById("dealerGhsInput");
+const dealerUseSendRate = document.getElementById("dealerUseSendRate");
+const dealerUseReceiveRate = document.getElementById("dealerUseReceiveRate");
 const dealerQuoteValue = document.getElementById("dealerQuoteValue");
 const dealerDisparityValue = document.getElementById("dealerDisparityValue");
 const dealerProfitValue = document.getElementById("dealerProfitValue");
@@ -282,18 +291,32 @@ function getActiveDealerQuote() {
 
     if (!result || result.error || result.clear || !(result.ngn > 0)) return null;
 
-    const rateType = TX[txKey].rateType;
-    const customerRate = rateType === "send" ? state.sendRate : state.receiveRate;
-    const profitRate = rateType === "send"
-        ? state.sendRate - state.dealerRate
-        : state.dealerRate - state.receiveRate;
-    const profitRateDifference = profitRate;
-
     return {
         deskLabel: isReceivingDesk ? "Receiving" : "Sending",
-        customerRate,
+        rateType: TX[txKey].rateType,
+        ghsAmount: result.ghs,
         ngnAmount: result.ngn,
-        profitRate,
+    };
+}
+
+function getDealerDeskQuote() {
+    const fallback = getActiveDealerQuote();
+    const rateType = state.dealerCustomerRateType;
+    const customerRate = rateType === "send" ? state.sendRate : state.receiveRate;
+    const ghsAmount = state.dealerGhsAmount || (fallback && fallback.ghsAmount) || 0;
+    const ngnAmount = state.dealerNgnAmount || (fallback && fallback.ngnAmount) || 0;
+
+    if (!(ngnAmount > 0)) return null;
+
+    const profitRateDifference = rateType === "send"
+        ? state.sendRate - state.dealerRate
+        : state.dealerRate - state.receiveRate;
+
+    return {
+        deskLabel: state.dealerNgnAmount || state.dealerGhsAmount ? "Dealer desk" : fallback.deskLabel,
+        customerRate,
+        ghsAmount,
+        ngnAmount,
         profitRateDifference,
         spreadRate: state.sendRate - state.receiveRate
     };
@@ -307,9 +330,19 @@ function setProfitClass(element, value) {
 function renderDealerProfit() {
     if (!dealerQuoteValue) return;
 
-    const quote = getActiveDealerQuote();
+    const quote = getDealerDeskQuote();
     const spreadRate = state.sendRate - state.receiveRate;
 
+    if (document.activeElement !== dealerSendRateInput) {
+        dealerSendRateInput.value = state.sendRate || "";
+    }
+
+    if (document.activeElement !== dealerReceiveRateInput) {
+        dealerReceiveRateInput.value = state.receiveRate || "";
+    }
+
+    dealerUseSendRate.classList.toggle("active", state.dealerCustomerRateType === "send");
+    dealerUseReceiveRate.classList.toggle("active", state.dealerCustomerRateType === "receive");
     rateSpreadValue.textContent = `${fmtSigned(spreadRate)} / NGN 1000`;
 
     if (!quote) {
@@ -322,7 +355,7 @@ function renderDealerProfit() {
         return;
     }
 
-    dealerQuoteValue.textContent = `${quote.deskLabel}: NGN ${fmt(quote.ngnAmount, 0)}`;
+    dealerQuoteValue.textContent = `${quote.deskLabel}: NGN ${fmt(quote.ngnAmount, 0)} / GHS ${fmt(quote.ghsAmount)}`;
 
     if (!(state.dealerRate > 0)) {
         dealerDisparityValue.textContent = "Set dealer rate";
@@ -333,7 +366,7 @@ function renderDealerProfit() {
         return;
     }
 
-    const profit = (quote.ngnAmount / 1000) * quote.profitRate;
+    const profit = (quote.ngnAmount / 1000) * quote.profitRateDifference;
     const spreadValue = (quote.ngnAmount / 1000) * quote.spreadRate;
 
     dealerDisparityValue.textContent = `${fmtSigned(quote.profitRateDifference)} / NGN 1000`;
@@ -345,6 +378,16 @@ function renderDealerProfit() {
 }
 
 function openDealerModal() {
+    const activeQuote = getActiveDealerQuote();
+
+    if (activeQuote && !(state.dealerNgnAmount > 0) && !(state.dealerGhsAmount > 0)) {
+        state.dealerCustomerRateType = activeQuote.rateType;
+        state.dealerNgnAmount = activeQuote.ngnAmount;
+        state.dealerGhsAmount = activeQuote.ghsAmount;
+        dealerNgnInput.value = Math.round(activeQuote.ngnAmount);
+        dealerGhsInput.value = activeQuote.ghsAmount.toFixed(2);
+    }
+
     dealerModal.hidden = false;
     document.body.classList.add("modal-open");
     renderDealerProfit();
@@ -355,6 +398,54 @@ function closeDealerModal() {
     dealerModal.hidden = true;
     document.body.classList.remove("modal-open");
     dealerToolButton.focus();
+}
+
+function currentDealerCustomerRate() {
+    return state.dealerCustomerRateType === "send" ? state.sendRate : state.receiveRate;
+}
+
+function syncDealerAmountFromNgn() {
+    const rate = currentDealerCustomerRate();
+    if (state.dealerNgnAmount > 0 && rate > 0) {
+        state.dealerGhsAmount = (state.dealerNgnAmount / 1000) * rate;
+        dealerGhsInput.value = state.dealerGhsAmount.toFixed(2);
+    }
+}
+
+function syncDealerAmountFromGhs() {
+    const rate = currentDealerCustomerRate();
+    if (state.dealerGhsAmount > 0 && rate > 0) {
+        state.dealerNgnAmount = (state.dealerGhsAmount / rate) * 1000;
+        dealerNgnInput.value = Math.round(state.dealerNgnAmount);
+    }
+}
+
+function applyDealerRateInputs() {
+    const sendRate = parseFloat(dealerSendRateInput.value);
+    const receiveRate = parseFloat(dealerReceiveRateInput.value);
+
+    if (sendRate > 0) {
+        state.sendRate = sendRate;
+        sendRateInput.value = sendRate;
+        saveRate("sendRate", sendRate);
+    }
+
+    if (receiveRate > 0) {
+        state.receiveRate = receiveRate;
+        receiveRateInput.value = receiveRate;
+        saveRate("receiveRate", receiveRate);
+    }
+
+    if (state.dealerNgnAmount > 0) {
+        syncDealerAmountFromNgn();
+    }
+
+    queueRateSave();
+    updateSpread();
+    renderSendingResult();
+    renderReceivingResult();
+    updateQuote();
+    renderDealerProfit();
 }
 
 
@@ -617,6 +708,7 @@ sendRateInput.addEventListener("input", (e) => {
     renderSendingResult();
     renderReceivingResult();
     updateQuote();
+    if (state.dealerNgnAmount > 0) syncDealerAmountFromNgn();
     renderDealerProfit();
 });
 
@@ -628,6 +720,7 @@ receiveRateInput.addEventListener("input", (e) => {
     renderSendingResult();
     renderReceivingResult();
     updateQuote();
+    if (state.dealerNgnAmount > 0) syncDealerAmountFromNgn();
     renderDealerProfit();
 });
 
@@ -793,6 +886,47 @@ dealerRateInput.addEventListener("input", () => {
         localStorage.removeItem("dealerRate");
     }
 
+    renderDealerProfit();
+});
+
+dealerSendRateInput.addEventListener("input", applyDealerRateInputs);
+dealerReceiveRateInput.addEventListener("input", applyDealerRateInputs);
+
+dealerNgnInput.addEventListener("input", () => {
+    state.dealerNgnAmount = parseFloat(dealerNgnInput.value) || 0;
+
+    if (state.dealerNgnAmount > 0) {
+        syncDealerAmountFromNgn();
+    } else {
+        state.dealerGhsAmount = 0;
+        dealerGhsInput.value = "";
+    }
+
+    renderDealerProfit();
+});
+
+dealerGhsInput.addEventListener("input", () => {
+    state.dealerGhsAmount = parseFloat(dealerGhsInput.value) || 0;
+
+    if (state.dealerGhsAmount > 0) {
+        syncDealerAmountFromGhs();
+    } else {
+        state.dealerNgnAmount = 0;
+        dealerNgnInput.value = "";
+    }
+
+    renderDealerProfit();
+});
+
+dealerUseSendRate.addEventListener("click", () => {
+    state.dealerCustomerRateType = "send";
+    if (state.dealerNgnAmount > 0) syncDealerAmountFromNgn();
+    renderDealerProfit();
+});
+
+dealerUseReceiveRate.addEventListener("click", () => {
+    state.dealerCustomerRateType = "receive";
+    if (state.dealerNgnAmount > 0) syncDealerAmountFromNgn();
     renderDealerProfit();
 });
 

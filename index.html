@@ -264,13 +264,52 @@
             <button class="modal-close" id="dealerModalClose" type="button" aria-label="Close dealer profit calculator">&times;</button>
         </div>
 
-        <label class="field-group">
-            <span class="field-label">Dealer rate</span>
-            <div class="amount-input-wrap dealer-rate-wrap">
-                <span class="currency-sym">GHS</span>
-                <input id="dealerRateInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
+        <div class="dealer-controls">
+            <label class="field-group">
+                <span class="field-label">Dealer rate</span>
+                <div class="amount-input-wrap dealer-rate-wrap">
+                    <span class="currency-sym">GHS</span>
+                    <input id="dealerRateInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
+                </div>
+            </label>
+
+            <label class="field-group">
+                <span class="field-label">Send rate</span>
+                <div class="amount-input-wrap dealer-rate-wrap">
+                    <span class="currency-sym">GHS</span>
+                    <input id="dealerSendRateInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
+                </div>
+            </label>
+
+            <label class="field-group">
+                <span class="field-label">Receive rate</span>
+                <div class="amount-input-wrap dealer-rate-wrap">
+                    <span class="currency-sym">GHS</span>
+                    <input id="dealerReceiveRateInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
+                </div>
+            </label>
+
+            <label class="field-group">
+                <span class="field-label">NGN amount</span>
+                <div class="amount-input-wrap">
+                    <span class="currency-sym">NGN</span>
+                    <input id="dealerNgnInput" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+                </div>
+            </label>
+
+            <label class="field-group">
+                <span class="field-label">GHS amount</span>
+                <div class="amount-input-wrap">
+                    <span class="currency-sym">GHS</span>
+                    <input id="dealerGhsInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
+                </div>
+            </label>
+
+            <div class="dealer-actions">
+                <button class="dealer-action-btn active" id="dealerUseSendRate" type="button">Use send</button>
+                <button class="dealer-action-btn" id="dealerUseReceiveRate" type="button">Use receive</button>
             </div>
-        </label>
+        </div>
 
         <div class="dealer-summary" aria-live="polite">
             <div>
